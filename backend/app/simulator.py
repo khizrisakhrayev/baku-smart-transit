@@ -7,7 +7,7 @@ so it reaches the next stop every STEPS_PER_SEGMENT * TICK_SECONDS seconds (see 
 import asyncio
 import random
 
-from app import config
+from app import config, events
 from app.models import Bus, Route, Stop
 from app.store import Store
 
@@ -82,7 +82,13 @@ def seed(store: Store, routes: list[Route]) -> None:
 
 
 async def run(store: Store, interval: float = config.TICK_SECONDS) -> None:
-    """Background loop: tick forever until cancelled."""
+    """Background loop: tick forever until cancelled; push new positions to live streams."""
     while True:
         await asyncio.sleep(interval)
         tick(store)
+        if events.has_subscribers():
+            events.publish("buses", buses_payload(store))
+
+
+def buses_payload(store: Store) -> list[dict]:
+    return [bus.model_dump(mode="json") for bus in store.buses.values()]

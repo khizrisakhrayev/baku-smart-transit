@@ -9,9 +9,10 @@ from datetime import timedelta
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import alternatives, analytics, anomaly, config, density, dispatch, eta, forecast, simulator, synthetic, trust
+from app import alternatives, analytics, anomaly, config, density, dispatch, eta, events, forecast, simulator, synthetic, trust
 from app.models import Alert, Analytics, Bus, BusEta, Report, ReportIn, Route, RouteDensity, RouteForecast, Stop
 from app.routes_data import ROUTES
 from app.store import store, utcnow
@@ -49,6 +50,17 @@ def get_route_or_404(route_id: str) -> Route:
 def health() -> dict:
     """Simple liveness check."""
     return {"status": "ok"}
+
+
+# --- Live stream ---
+
+@app.get("/api/stream")
+async def live_stream() -> StreamingResponse:
+    """Server-Sent Events: "buses" (all positions) after every simulator tick and
+    "alert" ({action: created|resolved, alert}) as soon as an alert changes."""
+    first = events.format_sse("buses", simulator.buses_payload(store))
+    return StreamingResponse(events.stream(first), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache"})
 
 
 # --- Passenger API ---

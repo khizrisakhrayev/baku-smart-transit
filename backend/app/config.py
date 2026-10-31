@@ -49,6 +49,9 @@ TREND_THRESHOLD = 0.05    # score change per minute that counts as rising/fallin
 ANALYTICS_MINUTES = 30
 ANALYTICS_TOP_ROUTES = 10
 
+# --- Live stream (Server-Sent Events, see events.py) ---
+STREAM_KEEPALIVE_SEC = 15  # comment line sent when nothing else happened
+
 # --- Report trust ---
 REPORT_COOLDOWN_SEC = 60  # one report per client per bus per minute
 MAX_REPORT_DISTANCE_M = float(os.getenv("MAX_REPORT_DISTANCE_M", "500"))  # 0 disables the check

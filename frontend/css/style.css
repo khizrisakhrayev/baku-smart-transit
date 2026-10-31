@@ -485,3 +485,27 @@ h2 { font-size: 1rem; margin: 0 0 0.5rem; }
   .charts,
   .table-view-grid { grid-template-columns: 1fr; }
 }
+
+/* --- Live / polling indicator (top bar) --- */
+
+.live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.live-indicator::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #c3c9d6;
+}
+
+.live-indicator.live::before { background: #4ade80; box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.3); }

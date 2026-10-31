@@ -12,6 +12,7 @@ const state = {
   bus: null,         // bus whose report panel is open
   routeLayer: null,  // polyline + stop markers of the selected route
   busMarkers: {},    // bus id -> Leaflet marker
+  live: false,       // true while the live stream is connected
 };
 
 // --- Map setup ---
@@ -222,6 +223,19 @@ async function refreshBuses() {
   const routeId = state.routeId;
   const buses = await api(`/api/buses?route_id=${encodeURIComponent(routeId)}`);
   if (routeId !== state.routeId) return; // route changed while loading
+  renderBuses(buses);
+}
+
+// Show the selected route's buses; drop markers of buses that left it (e.g. dispatched).
+function renderBuses(allBuses) {
+  const buses = allBuses.filter((bus) => bus.route_id === state.routeId);
+  const ids = new Set(buses.map((bus) => bus.id));
+  for (const [id, marker] of Object.entries(state.busMarkers)) {
+    if (!ids.has(id)) {
+      marker.remove();
+      delete state.busMarkers[id];
+    }
+  }
   for (const bus of buses) {
     let marker = state.busMarkers[bus.id];
     if (!marker) {
@@ -290,8 +304,30 @@ document.querySelectorAll("[data-close]").forEach((button) =>
   })
 );
 
+// --- Live updates: Server-Sent Events, with polling as the automatic fallback ---
+
+function setLive(live) {
+  state.live = live;
+  const indicator = document.getElementById("live-indicator");
+  indicator.textContent = live ? "Canlı" : "Polling";
+  indicator.classList.toggle("live", live);
+}
+
+// While the stream is open, bus positions arrive by push; on any error we drop back to
+// polling (EventSource keeps retrying by itself and we switch back when it reconnects).
+function startLiveStream(handlers) {
+  if (!window.EventSource) return;
+  const source = new EventSource("/api/stream");
+  source.addEventListener("open", () => setLive(true));
+  source.addEventListener("error", () => setLive(false));
+  for (const [event, handle] of Object.entries(handlers)) {
+    source.addEventListener(event, (message) => handle(JSON.parse(message.data)));
+  }
+}
+
 loadRoutes();
+startLiveStream({ buses: renderBuses });
 setInterval(() => {
-  refreshBuses().catch(console.error);
+  if (!state.live) refreshBuses().catch(console.error);
   refreshEta().catch(console.error);
 }, POLL_MS);

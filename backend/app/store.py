@@ -7,6 +7,7 @@ Timestamps are stored as UTC ISO-8601 strings, which sort correctly as text.
 import sqlite3
 from datetime import datetime, timezone
 
+from app import events
 from app.models import Alert, Bus, Report, ReportIn, Route
 
 SCHEMA = """
@@ -146,7 +147,9 @@ class Store:
                 "VALUES (?, ?, ?, ?, ?)",
                 (route_id, message, _to_text(created_at or utcnow()), donor_route_id, recommendation),
             )
-        return self.get_alert(cursor.lastrowid)
+        alert = self.get_alert(cursor.lastrowid)
+        events.publish("alert", {"action": "created", "alert": alert.model_dump(mode="json")})
+        return alert
 
     def get_alert(self, alert_id: int) -> Alert | None:
         row = self.db.execute("SELECT * FROM alerts WHERE id = ?", (alert_id,)).fetchone()
@@ -176,12 +179,15 @@ class Store:
         """Mark an alert resolved (no-op if already resolved); None if it doesn't exist.
         `dispatched_bus_id` records the bus sent to the route, if any."""
         with self.db:
-            self.db.execute(
+            cursor = self.db.execute(
                 "UPDATE alerts SET resolved_at = ?, dispatched_bus_id = ? "
                 "WHERE id = ? AND resolved_at IS NULL",
                 (_to_text(resolved_at or utcnow()), dispatched_bus_id, alert_id),
             )
-        return self.get_alert(alert_id)
+        alert = self.get_alert(alert_id)
+        if cursor.rowcount:  # only announce an actual change
+            events.publish("alert", {"action": "resolved", "alert": alert.model_dump(mode="json")})
+        return alert
 
 
 # Shared app-wide instance (in-memory until main.py opens the real database file).

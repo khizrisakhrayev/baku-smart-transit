@@ -24,6 +24,8 @@ const state = {
   alertRouteIds: new Set(),  // routes with an active alert
   knownAlertIds: null,    // alert ids seen so far; null until the first load
   forecasts: {},          // route id -> /api/operator/forecast entry
+  buses: [],              // latest bus positions (from the live stream or polling)
+  live: false,            // true while the live stream is connected
 };
 
 // --- Map setup ---
@@ -518,11 +520,12 @@ async function refreshAnalytics() {
 
 async function refresh() {
   const [buses, densities, alerts, forecasts] = await Promise.all([
-    api("/api/buses"),
+    state.live ? state.buses : api("/api/buses"), // pushed by the stream while live
     api("/api/operator/density"),
     api("/api/operator/alerts"),
     api("/api/operator/forecast"),
   ]);
+  state.buses = buses;
   state.densities = densities;
   state.forecasts = Object.fromEntries(forecasts.map((f) => [f.route_id, f]));
   state.alertRouteIds = new Set(alerts.filter((a) => !a.resolved_at).map((a) => a.route_id));
@@ -570,7 +573,36 @@ document.getElementById("density-body").addEventListener("click", async (event) 
   refresh();
 });
 
+// --- Live updates: Server-Sent Events, with polling as the automatic fallback ---
+
+function setLive(live) {
+  state.live = live;
+  const indicator = document.getElementById("live-indicator");
+  indicator.textContent = live ? "Canlı" : "Polling";
+  indicator.classList.toggle("live", live);
+}
+
+// While the stream is open, bus positions arrive by push; on any error we drop back to
+// polling (EventSource keeps retrying by itself and we switch back when it reconnects).
+function startLiveStream(handlers) {
+  if (!window.EventSource) return;
+  const source = new EventSource("/api/stream");
+  source.addEventListener("open", () => setLive(true));
+  source.addEventListener("error", () => setLive(false));
+  for (const [event, handle] of Object.entries(handlers)) {
+    source.addEventListener(event, (message) => handle(JSON.parse(message.data)));
+  }
+}
+
+function onLiveBuses(buses) {
+  state.buses = buses;
+  updateBusMarkers(buses);
+  document.getElementById("stat-buses").textContent = buses.length;
+}
+
 loadRoutes().then(refresh).catch(console.error);
+// Alerts are pushed the moment they change; refresh() then shows them (toast, beep, flash).
+startLiveStream({ buses: onLiveBuses, alert: () => refresh().catch(console.error) });
 setInterval(() => refresh().catch(console.error), POLL_MS);
 
 createCharts();
