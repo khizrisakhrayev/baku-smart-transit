@@ -1,42 +1,216 @@
-// Passenger view: live bus map, stop ETAs and crowd density reporting.
+// Passenger view: up to 3 routes on the map, live buses, stop ETAs and density reporting.
 
-const POLL_MS = 3000;
-const BAKU_CENTER = [40.395, 49.86];
-const ROUTE_COLOR = "#2563eb";
-const DENSITY_LABELS = { low: "Aşağı", medium: "Orta", high: "Yüksək" };
+const MAX_ROUTES = 3;
+const STOP_ZOOM = 14; // stop dots appear from this zoom (the selected stop always shows)
 
 const state = {
-  routes: {},        // route id -> route (with stops)
-  routeId: null,     // selected route
-  stop: null,        // stop whose ETAs are shown
-  bus: null,         // bus whose report panel is open
-  routeLayer: null,  // polyline + stop markers of the selected route
-  busMarkers: {},    // bus id -> Leaflet marker
-  live: false,       // true while the live stream is connected
+  routes: {},         // route id -> route (with stops)
+  selected: [],       // selected route ids, in the order they were added
+  colors: {},         // route id -> line color; kept while selected, so colors never shuffle
+  lines: {},          // route id -> Leaflet polyline
+  stop: null,         // stop whose ETAs are shown
+  bus: null,          // bus whose report panel is open
+  busMarkers: {},     // bus id -> Leaflet marker
 };
 
-// --- Map setup ---
+const map = createMap("map");
+const stopLayer = L.layerGroup().addTo(map);
+map.on("zoomend", drawStops);
 
-const map = L.map("map", { zoomControl: false }).setView(BAKU_CENTER, 13);
-L.control.zoom({ position: "bottomright" }).addTo(map);
-L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-}).addTo(map);
+// --- Route selection (chips) ---
 
-// --- Helpers ---
-
-// Throws on HTTP errors; error.detail holds the server's message (e.g. rate limit) if any.
-async function api(path, options) {
-  const response = await fetch(path, options);
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    const error = new Error(`${response.status} ${path}`);
-    error.detail = typeof body.detail === "string" ? body.detail : null;
-    throw error;
-  }
-  return response.json();
+async function loadRoutes() {
+  const routes = await api("/api/routes");
+  routes.forEach((route) => (state.routes[route.id] = route));
+  document.getElementById("route-search").addEventListener("input", fillRouteSelect);
+  document.getElementById("route-select").addEventListener("change", (event) => {
+    if (event.target.value) addRoute(event.target.value);
+  });
+  fillRouteSelect();
+  addRoute(routes[0].id);
 }
+
+function fillRouteSelect() {
+  const query = document.getElementById("route-search").value;
+  const matches = Object.values(state.routes)
+    .filter((route) => !state.selected.includes(route.id) && routeMatches(route, query));
+  const select = document.getElementById("route-select");
+  select.innerHTML = "";
+  select.add(new Option(matches.length ? "+ Marşrut əlavə et" : "Heç nə tapılmadı", ""));
+  for (const route of matches) select.add(new Option(`${route.id} · ${route.name}`, route.id));
+}
+
+function addRoute(routeId) {
+  if (state.selected.length >= MAX_ROUTES) {
+    showToast(`Ən çox ${MAX_ROUTES} marşrut seçmək olar`);
+    fillRouteSelect();
+    return;
+  }
+  const usedColors = Object.values(state.colors);
+  state.colors[routeId] = ACCENT_COLORS.find((color) => !usedColors.includes(color));
+  state.selected.push(routeId);
+  const route = state.routes[routeId];
+  state.lines[routeId] = L.polyline(route.stops.map((s) => [s.lat, s.lon]),
+    { color: state.colors[routeId], weight: 5, opacity: 0.8 }).addTo(map);
+  onRoutesChanged();
+  map.fitBounds(state.lines[routeId].getBounds(), { padding: [40, 40] });
+}
+
+function removeRoute(routeId) {
+  state.selected = state.selected.filter((id) => id !== routeId);
+  delete state.colors[routeId];
+  state.lines[routeId].remove();
+  delete state.lines[routeId];
+  if (state.stop && !selectedRoutesWithStop(state.stop.id).length) closeEta();
+  onRoutesChanged();
+}
+
+function onRoutesChanged() {
+  document.getElementById("route-search").value = "";
+  fillRouteSelect();
+  renderChips();
+  renderStopList();
+  drawStops();
+  refreshBuses().catch(console.error);
+}
+
+function renderChips() {
+  const chips = document.getElementById("route-chips");
+  if (!state.selected.length) {
+    chips.innerHTML = '<li class="empty">Xəritədə görmək üçün yuxarıdan marşrut seçin.</li>';
+    return;
+  }
+  chips.innerHTML = state.selected.map((id) => `
+    <li class="chip" style="--route-color: ${state.colors[id]}">
+      <span class="chip-swatch"></span>
+      <strong>${id}</strong>
+      <span class="chip-name">${state.routes[id].name}</span>
+      <button class="chip-remove" data-remove-route="${id}" aria-label="Sil: Marşrut ${id}">×</button>
+    </li>`).join("");
+}
+
+// --- Stops ---
+
+function selectedRoutesWithStop(stopId) {
+  return state.selected.filter((id) => state.routes[id].stops.some((s) => s.id === stopId));
+}
+
+// Stop dots only when zoomed in (the map stays clean), but the selected stop always shows.
+function drawStops() {
+  stopLayer.clearLayers();
+  const showAll = map.getZoom() >= STOP_ZOOM;
+  const drawn = new Set();
+  for (const routeId of state.selected) {
+    for (const stop of state.routes[routeId].stops) {
+      const isSelected = state.stop && state.stop.id === stop.id;
+      if (drawn.has(stop.id) || !(showAll || isSelected)) continue;
+      drawn.add(stop.id);
+      L.circleMarker([stop.lat, stop.lon], {
+        radius: isSelected ? 9 : 6,
+        color: state.colors[routeId],
+        weight: 3,
+        fillColor: isSelected ? state.colors[routeId] : "#fff",
+        fillOpacity: 1,
+      }).bindTooltip(stop.name).on("click", () => showStop(stop)).addTo(stopLayer);
+    }
+  }
+}
+
+function renderStopList() {
+  const container = document.getElementById("stop-list");
+  if (!state.selected.length) {
+    container.innerHTML = '<p class="empty">Marşrut seçildikdə dayanacaqlar burada görünəcək.</p>';
+    return;
+  }
+  container.innerHTML = state.selected.map((id) => `
+    <h3 class="stop-group" style="--route-color: ${state.colors[id]}">
+      <span class="chip-swatch"></span>Marşrut ${id}
+    </h3>
+    <ol class="stop-list">
+      ${state.routes[id].stops.map((stop) => `
+        <li data-stop-id="${stop.id}" class="${state.stop && state.stop.id === stop.id ? "active" : ""}">
+          ${stop.name}
+        </li>`).join("")}
+    </ol>`).join("");
+}
+
+// --- Stop ETAs ---
+
+function showStop(stop) {
+  state.stop = stop;
+  document.getElementById("eta-title").textContent = stop.name;
+  show("eta-card");
+  renderStopList();
+  drawStops();
+  refreshEta().catch(console.error);
+}
+
+function closeEta() {
+  state.stop = null;
+  hide("eta-card");
+  renderStopList();
+  drawStops();
+}
+
+function routeTag(routeId) {
+  const color = state.colors[routeId] || TEXT_COLOR; // routes not on the map: neutral
+  return `<span class="route-tag" style="--route-color: ${color}">${routeId}</span>`;
+}
+
+function formatMinutes(minutes) {
+  if (minutes < 1) return "1 dəq-dən az";
+  return `${Math.round(minutes)} dəq`;
+}
+
+async function refreshEta() {
+  if (!state.stop) return;
+  const etas = await api(`/api/stops/${state.stop.id}/eta`);
+  const list = document.getElementById("eta-list");
+  if (!etas.length) {
+    list.innerHTML = '<li class="empty">Bu dayanacağa yaxınlaşan avtobus yoxdur.</li>';
+    return;
+  }
+  list.innerHTML = etas.map((eta) => `
+    <li class="${eta.most_comfortable ? "comfortable" : ""}">
+      ${routeTag(eta.route_id)}
+      <span class="eta-bus">
+        Avtobus ${eta.bus_id}
+        ${eta.most_comfortable ? '<span class="comfort-badge">⭐ Ən rahat seçim</span>' : ""}
+      </span>
+      ${badge(eta.density)}
+      <strong class="eta-time">${formatMinutes(eta.eta_minutes)}</strong>
+      ${suggestionBox(eta.suggestion)}
+    </li>`).join("");
+}
+
+// Hint under a crowded bus: a less crowded bus worth waiting for (from the server).
+function suggestionBox(suggestion) {
+  if (!suggestion) return "";
+  const minutes = Math.max(1, Math.round(suggestion.eta_minutes));
+  return `
+    <div class="suggestion">
+      💡 Bu avtobus doludur. Marşrut ${suggestion.route_id} ${minutes} dəq sonra gəlir
+      (sıxlıq: ${densityLabel(suggestion.density)})
+    </div>`;
+}
+
+// --- Live buses (selected routes only) ---
+
+async function refreshBuses() {
+  renderBuses(await api("/api/buses"));
+}
+
+function renderBuses(allBuses) {
+  const buses = allBuses.filter((bus) => state.selected.includes(bus.route_id));
+  syncBusMarkers(map, state.busMarkers, buses, {
+    outline: (bus) => state.colors[bus.route_id],
+    onClick: openBusPanel,
+  });
+  const open = state.bus && buses.find((bus) => bus.id === state.bus.id);
+  if (open) renderBusPanel(open);
+}
+
+// --- Density reporting ---
 
 // Anonymous id kept in this browser, so the server can rate-limit and count unique reporters.
 function getClientId() {
@@ -60,211 +234,17 @@ function getPosition() {
   });
 }
 
-function densityClass(level) {
-  return `density-${level || "unknown"}`;
-}
-
-function densityLabel(level) {
-  return DENSITY_LABELS[level] || "Məlum deyil";
-}
-
-function formatMinutes(minutes) {
-  if (minutes < 1) return "1 dəq-dən az";
-  return `${Math.round(minutes)} dəq`;
-}
-
-function show(id) { document.getElementById(id).hidden = false; }
-function hide(id) { document.getElementById(id).hidden = true; }
-
-function showToast(text) {
-  const toast = document.getElementById("toast");
-  toast.textContent = text;
-  toast.classList.add("visible");
-  clearTimeout(showToast.timer);
-  showToast.timer = setTimeout(() => toast.classList.remove("visible"), 3000);
-}
-
-// --- Routes and stops ---
-
-async function loadRoutes() {
-  const routes = await api("/api/routes");
-  routes.forEach((route) => (state.routes[route.id] = route));
-  const select = document.getElementById("route-select");
-  select.addEventListener("change", () => selectRoute(select.value));
-  document.getElementById("route-search").addEventListener("input", filterRoutes);
-  fillRouteSelect(routes);
-  selectRoute(routes[0].id);
-}
-
-// Search matches the route number, route name or any of its stop names.
-function routeMatches(route, query) {
-  const text = [route.id, route.name, ...route.stops.map((s) => s.name)].join(" ");
-  return text.toLocaleLowerCase("az").includes(query);
-}
-
-function filterRoutes() {
-  const query = document.getElementById("route-search").value.trim().toLocaleLowerCase("az");
-  const matches = Object.values(state.routes).filter((route) => routeMatches(route, query));
-  fillRouteSelect(matches);
-  if (matches.length && !matches.some((r) => r.id === state.routeId)) selectRoute(matches[0].id);
-}
-
-function fillRouteSelect(routes) {
-  const select = document.getElementById("route-select");
-  select.innerHTML = "";
-  if (!routes.length) select.add(new Option("Heç nə tapılmadı", ""));
-  for (const route of routes) select.add(new Option(`${route.id} · ${route.name}`, route.id));
-  if (routes.some((r) => r.id === state.routeId)) select.value = state.routeId;
-}
-
-function selectRoute(routeId) {
-  state.routeId = routeId;
-  state.stop = null;
-  state.bus = null;
-  hide("eta-card");
-  hide("bus-panel");
-  drawRoute(state.routes[routeId]);
-  renderStopList(state.routes[routeId]);
-  clearBusMarkers();
-  refreshBuses();
-}
-
-function drawRoute(route) {
-  if (state.routeLayer) state.routeLayer.remove();
-  const points = route.stops.map((s) => [s.lat, s.lon]);
-  const line = L.polyline(points, { color: ROUTE_COLOR, weight: 5, opacity: 0.7 });
-  const stopMarkers = route.stops.map((stop) =>
-    L.circleMarker([stop.lat, stop.lon], {
-      radius: 7, color: ROUTE_COLOR, weight: 3, fillColor: "#fff", fillOpacity: 1,
-    })
-      .bindTooltip(stop.name)
-      .on("click", () => showStop(stop))
-  );
-  state.routeLayer = L.layerGroup([line, ...stopMarkers]).addTo(map);
-  map.fitBounds(line.getBounds(), { padding: [40, 40] });
-}
-
-function renderStopList(route) {
-  const list = document.getElementById("stop-list");
-  list.innerHTML = "";
-  for (const stop of route.stops) {
-    const item = document.createElement("li");
-    item.textContent = stop.name;
-    item.dataset.stopId = stop.id;
-    item.addEventListener("click", () => {
-      map.panTo([stop.lat, stop.lon]);
-      showStop(stop);
-    });
-    list.appendChild(item);
-  }
-}
-
-// --- Stop ETAs ---
-
-function showStop(stop) {
-  state.stop = stop;
-  document.getElementById("eta-title").textContent = stop.name;
-  document.querySelectorAll("#stop-list li").forEach((li) =>
-    li.classList.toggle("active", li.dataset.stopId === stop.id)
-  );
-  show("eta-card");
-  refreshEta();
-}
-
-async function refreshEta() {
-  if (!state.stop) return;
-  const etas = await api(`/api/stops/${state.stop.id}/eta`);
-  const list = document.getElementById("eta-list");
-  list.innerHTML = etas.length ? "" : '<li class="hint">Yaxınlaşan avtobus yoxdur</li>';
-  for (const eta of etas) {
-    const item = document.createElement("li");
-    item.classList.toggle("comfortable", eta.most_comfortable);
-    item.innerHTML = `
-      <span class="route-tag">${eta.route_id}</span>
-      <span class="eta-bus">
-        Avtobus ${eta.bus_id}
-        ${eta.most_comfortable ? '<span class="comfort-badge">⭐ Ən rahat seçim</span>' : ""}
-      </span>
-      <span class="badge ${densityClass(eta.density)}">${densityLabel(eta.density)}</span>
-      <strong class="eta-time">${formatMinutes(eta.eta_minutes)}</strong>
-      ${suggestionBox(eta.suggestion)}`;
-    list.appendChild(item);
-  }
-}
-
-// Hint under a crowded bus: a less crowded bus worth waiting for (from the server).
-function suggestionBox(suggestion) {
-  if (!suggestion) return "";
-  const minutes = Math.max(1, Math.round(suggestion.eta_minutes));
-  return `
-    <div class="suggestion">
-      💡 Bu avtobus doludur. Marşrut ${suggestion.route_id} ${minutes} dəq sonra gəlir
-      (sıxlıq: ${densityLabel(suggestion.density)})
-    </div>`;
-}
-
-// --- Live buses ---
-
-function busIcon(bus) {
-  return L.divIcon({
-    className: "bus-icon",
-    html: `<div class="bus-marker ${densityClass(bus.density)}">${bus.route_id}</div>`,
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
-  });
-}
-
-function clearBusMarkers() {
-  Object.values(state.busMarkers).forEach((marker) => marker.remove());
-  state.busMarkers = {};
-}
-
-async function refreshBuses() {
-  const routeId = state.routeId;
-  const buses = await api(`/api/buses?route_id=${encodeURIComponent(routeId)}`);
-  if (routeId !== state.routeId) return; // route changed while loading
-  renderBuses(buses);
-}
-
-// Show the selected route's buses; drop markers of buses that left it (e.g. dispatched).
-function renderBuses(allBuses) {
-  const buses = allBuses.filter((bus) => bus.route_id === state.routeId);
-  const ids = new Set(buses.map((bus) => bus.id));
-  for (const [id, marker] of Object.entries(state.busMarkers)) {
-    if (!ids.has(id)) {
-      marker.remove();
-      delete state.busMarkers[id];
-    }
-  }
-  for (const bus of buses) {
-    let marker = state.busMarkers[bus.id];
-    if (!marker) {
-      marker = L.marker([bus.lat, bus.lon], { icon: busIcon(bus), zIndexOffset: 1000 }).addTo(map);
-      marker.on("click", () => openBusPanel(marker.bus));
-      state.busMarkers[bus.id] = marker;
-    } else if (marker.bus.density !== bus.density) {
-      marker.setIcon(busIcon(bus)); // only recolor when needed, so the glide animation survives
-    }
-    marker.bus = bus;
-    marker.setLatLng([bus.lat, bus.lon]);
-    if (state.bus && state.bus.id === bus.id) renderBusPanel(bus);
-  }
-}
-
-// --- Density reporting ---
-
 function openBusPanel(bus) {
-  state.bus = bus;
   renderBusPanel(bus);
   show("bus-panel");
 }
 
 function renderBusPanel(bus) {
   state.bus = bus;
-  document.getElementById("bus-title").textContent = `Avtobus ${bus.id}`;
-  const badge = document.getElementById("bus-density");
-  badge.className = `badge ${densityClass(bus.density)}`;
-  badge.textContent = densityLabel(bus.density);
+  document.getElementById("bus-title").textContent = `Avtobus ${bus.id} · Marşrut ${bus.route_id}`;
+  const densityBadge = document.getElementById("bus-density");
+  densityBadge.className = `badge ${densityClass(bus.density)}`;
+  densityBadge.textContent = densityLabel(bus.density);
 }
 
 async function sendReport(level) {
@@ -281,8 +261,8 @@ async function sendReport(level) {
     showToast("Təşəkkürlər, bildirişiniz qəbul edildi");
     hide("bus-panel");
     state.bus = null;
-    refreshBuses();
-    refreshEta();
+    refreshBuses().catch(console.error);
+    refreshEta().catch(console.error);
   } catch (error) {
     showToast(error.detail || "Xəta baş verdi, yenidən cəhd edin");
   } finally {
@@ -290,44 +270,34 @@ async function sendReport(level) {
   }
 }
 
-// --- Wiring ---
+// --- Wiring (lists are re-rendered, so listen on their containers) ---
+
+document.getElementById("route-chips").addEventListener("click", (event) => {
+  const routeId = event.target.dataset.removeRoute;
+  if (routeId) removeRoute(routeId);
+});
+
+document.getElementById("stop-list").addEventListener("click", (event) => {
+  const item = event.target.closest("[data-stop-id]");
+  if (!item) return;
+  const stop = state.selected.flatMap((id) => state.routes[id].stops).find((s) => s.id === item.dataset.stopId);
+  map.panTo([stop.lat, stop.lon]);
+  showStop(stop);
+});
 
 document.querySelectorAll(".report-buttons button").forEach((button) =>
   button.addEventListener("click", () => sendReport(button.dataset.level))
 );
 
-document.querySelectorAll("[data-close]").forEach((button) =>
-  button.addEventListener("click", () => {
-    hide(button.dataset.close);
-    if (button.dataset.close === "eta-card") state.stop = null;
-    if (button.dataset.close === "bus-panel") state.bus = null;
-  })
-);
+document.querySelector('[data-close="eta-card"]').addEventListener("click", closeEta);
+document.querySelector('[data-close="bus-panel"]').addEventListener("click", () => {
+  hide("bus-panel");
+  state.bus = null;
+});
 
-// --- Live updates: Server-Sent Events, with polling as the automatic fallback ---
-
-function setLive(live) {
-  state.live = live;
-  const indicator = document.getElementById("live-indicator");
-  indicator.textContent = live ? "Canlı" : "Polling";
-  indicator.classList.toggle("live", live);
-}
-
-// While the stream is open, bus positions arrive by push; on any error we drop back to
-// polling (EventSource keeps retrying by itself and we switch back when it reconnects).
-function startLiveStream(handlers) {
-  if (!window.EventSource) return;
-  const source = new EventSource("/api/stream");
-  source.addEventListener("open", () => setLive(true));
-  source.addEventListener("error", () => setLive(false));
-  for (const [event, handle] of Object.entries(handlers)) {
-    source.addEventListener(event, (message) => handle(JSON.parse(message.data)));
-  }
-}
-
-loadRoutes();
+loadRoutes().catch(console.error);
 startLiveStream({ buses: renderBuses });
 setInterval(() => {
-  if (!state.live) refreshBuses().catch(console.error);
+  if (!live.connected) refreshBuses().catch(console.error);
   refreshEta().catch(console.error);
 }, POLL_MS);

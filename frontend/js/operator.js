@@ -6,12 +6,7 @@
 // - the selected route is thick, shows its stops and is zoomed to;
 // - bus markers are shown only for the selected route and alerted routes.
 
-const POLL_MS = 3000;
-const BAKU_CENTER = [40.41, 49.89];
-const DENSITY_LABELS = { low: "Aşağı", medium: "Orta", high: "Yüksək" };
-const DENSITY_COLORS = { low: "#22a06b", medium: "#f59e0b", high: "#e5484d" };
-const SELECTED_COLOR = "#2563eb";
-const IDLE_COLOR = "#8a94a6";
+const IDLE_COLOR = UNKNOWN_COLOR;
 const SEVERITY = { high: 3, medium: 2, low: 1 }; // alerts rank above all (4), no data is 0
 
 const state = {
@@ -25,54 +20,26 @@ const state = {
   knownAlertIds: null,    // alert ids seen so far; null until the first load
   forecasts: {},          // route id -> /api/operator/forecast entry
   buses: [],              // latest bus positions (from the live stream or polling)
-  live: false,            // true while the live stream is connected
 };
 
-// --- Map setup ---
-
-const map = L.map("map").setView(BAKU_CENTER, 12);
-L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-}).addTo(map);
-
-// --- Helpers ---
-
-async function api(path, options) {
-  const response = await fetch(path, options);
-  if (!response.ok) throw new Error(`${response.status} ${path}`);
-  return response.json();
-}
-
-function densityClass(level) {
-  return `density-${level || "unknown"}`;
-}
-
-function densityLabel(level) {
-  return DENSITY_LABELS[level] || "Məlum deyil";
-}
-
-function badge(level) {
-  return `<span class="badge ${densityClass(level)}">${densityLabel(level)}</span>`;
-}
-
-function formatTime(isoText) {
-  if (!isoText) return "—";
-  return new Date(isoText).toLocaleTimeString("az-AZ", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-}
+const map = createMap("map");
 
 function routeLabel(routeId) {
   const route = state.routes[routeId];
   return route ? `${route.id} · ${route.name}` : routeId;
 }
 
-function showToast(text) {
-  const toast = document.getElementById("toast");
-  toast.textContent = text;
-  toast.classList.add("visible");
-  clearTimeout(showToast.timer);
-  showToast.timer = setTimeout(() => toast.classList.remove("visible"), 4000);
+// --- Tabs: Xəritə / Alertlər / Analitika (summary cards stay visible above them) ---
+
+function showTab(name) {
+  document.querySelectorAll("[data-tab]").forEach((tab) =>
+    tab.setAttribute("aria-selected", String(tab.dataset.tab === name)));
+  document.querySelectorAll("[data-panel]").forEach((panel) => (panel.hidden = panel.dataset.panel !== name));
+  if (name === "map") map.invalidateSize(); // Leaflet must re-measure after being hidden
 }
+
+document.querySelectorAll("[data-tab]").forEach((tab) =>
+  tab.addEventListener("click", () => showTab(tab.dataset.tab)));
 
 // --- Severity: alert > high > medium > low > no data ---
 
@@ -91,7 +58,7 @@ function isProblem(density) {
   return severity(density) >= 2;
 }
 
-// --- New-alert signal: short beep + flashing alerts panel ---
+// --- New-alert signal: toast, short beep and a flashing Alertlər tab ---
 
 function beep() {
   try {
@@ -110,10 +77,10 @@ function beep() {
 }
 
 function flashAlerts() {
-  const card = document.getElementById("alerts-card");
-  card.classList.remove("flash");
-  void card.offsetWidth; // restart the CSS animation
-  card.classList.add("flash");
+  const tab = document.getElementById("alerts-tab");
+  tab.classList.remove("flash");
+  void tab.offsetWidth; // restart the CSS animation
+  tab.classList.add("flash");
 }
 
 function notifyNewAlerts(alerts) {
@@ -155,7 +122,7 @@ function styleRouteLines() {
     const selected = d.route_id === state.selectedRouteId;
     const alerted = state.alertRouteIds.has(d.route_id);
     if (selected || isProblem(d)) {
-      const color = alerted ? DENSITY_COLORS.high : DENSITY_COLORS[d.dominant_level] || SELECTED_COLOR;
+      const color = alerted ? DENSITY_COLORS.high : DENSITY_COLORS[d.dominant_level] || PRIMARY_COLOR;
       line.setStyle({ color, weight: selected ? 8 : 6, opacity: 0.9 });
       line.bringToFront();
     } else {
@@ -173,7 +140,7 @@ function selectRoute(routeId) {
   if (state.selectedRouteId) {
     const route = state.routes[routeId];
     state.stopLayer = L.layerGroup(route.stops.map((stop) =>
-      L.circleMarker([stop.lat, stop.lon], { radius: 5, color: "#1c2333", weight: 2, fillColor: "#fff", fillOpacity: 1 })
+      L.circleMarker([stop.lat, stop.lon], { radius: 5, color: TEXT_COLOR, weight: 2, fillColor: "#fff", fillOpacity: 1 })
         .bindTooltip(stop.name)
     )).addTo(map);
     map.fitBounds(state.routeLines[routeId].getBounds(), { padding: [40, 40] });
@@ -185,41 +152,14 @@ function selectRoute(routeId) {
 
 // --- Live buses (selected + alerted routes only) ---
 
-function busIcon(bus) {
-  return L.divIcon({
-    className: "bus-icon",
-    html: `<div class="bus-marker ${densityClass(bus.density)}">${bus.route_id}</div>`,
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
-  });
-}
-
 function isBusVisible(bus) {
   return bus.route_id === state.selectedRouteId || state.alertRouteIds.has(bus.route_id);
 }
 
 function updateBusMarkers(buses) {
-  const visibleIds = new Set();
-  for (const bus of buses.filter(isBusVisible)) {
-    visibleIds.add(bus.id);
-    let marker = state.busMarkers[bus.id];
-    if (!marker) {
-      marker = L.marker([bus.lat, bus.lon], { icon: busIcon(bus), zIndexOffset: 1000 })
-        .bindTooltip(`Avtobus ${bus.id}`)
-        .addTo(map);
-      state.busMarkers[bus.id] = marker;
-    } else if (marker.bus.density !== bus.density) {
-      marker.setIcon(busIcon(bus)); // only recolor when needed, so the glide animation survives
-    }
-    marker.bus = bus;
-    marker.setLatLng([bus.lat, bus.lon]);
-  }
-  for (const [id, marker] of Object.entries(state.busMarkers)) {
-    if (!visibleIds.has(id)) {
-      marker.remove();
-      delete state.busMarkers[id];
-    }
-  }
+  syncBusMarkers(map, state.busMarkers, buses.filter(isBusVisible), {
+    tooltip: (bus) => `Avtobus ${bus.id} · ${densityLabel(bus.density)}`,
+  });
 }
 
 // --- Summary, route list, table and alerts ---
@@ -228,22 +168,20 @@ function renderSummary(buses, alerts) {
   const reports = state.densities.reduce((sum, d) => sum + d.counts.low + d.counts.medium + d.counts.high, 0);
   document.getElementById("stat-buses").textContent = buses.length;
   document.getElementById("stat-reports").textContent = reports;
-  document.getElementById("stat-alerts").textContent = alerts.filter((a) => !a.resolved_at).length;
-}
-
-// Search matches the route number, route name or any of its stop names.
-function routeMatches(route, query) {
-  const text = [route.id, route.name, ...route.stops.map((s) => s.name)].join(" ");
-  return text.toLocaleLowerCase("az").includes(query);
+  const activeCount = alerts.filter((a) => !a.resolved_at).length;
+  document.getElementById("stat-alerts").textContent = activeCount;
+  const countBadge = document.getElementById("alert-count");
+  countBadge.textContent = activeCount;
+  countBadge.hidden = activeCount === 0;
 }
 
 function renderRouteList() {
-  const query = document.getElementById("route-search").value.trim().toLocaleLowerCase("az");
+  const query = document.getElementById("route-search").value;
   const rows = [...state.densities].sort(bySeverity)
     .filter((d) => routeMatches(state.routes[d.route_id], query));
   const list = document.getElementById("route-list");
   if (!rows.length) {
-    list.innerHTML = '<li class="hint">Heç nə tapılmadı</li>';
+    list.innerHTML = '<li class="empty">Heç nə tapılmadı. Başqa nömrə və ya ad yazın.</li>';
     return;
   }
   list.innerHTML = rows.map((d) => `
@@ -326,7 +264,7 @@ function renderAlerts(alerts) {
   const list = document.getElementById("alert-list");
   const warnings = warningItems();
   if (!alerts.length && !warnings) {
-    list.innerHTML = '<li class="hint">Xəbərdarlıq yoxdur</li>';
+    list.innerHTML = '<li class="empty">Hazırda xəbərdarlıq yoxdur. Yeni xəbərdarlıqlar və proqnozlar burada görünəcək.</li>';
     return;
   }
   const active = alerts.filter((a) => !a.resolved_at);
@@ -354,11 +292,10 @@ function alertItems(alerts) {
 
 const ANALYTICS_MS = 10000;
 const LEVELS = ["low", "medium", "high"];
-const TEXT_COLOR = "#1c2333";
 const MUTED_COLOR = "#6b7489";
 const GRID_COLOR = "#e3e7ef";
 
-Chart.defaults.font.family = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+Chart.defaults.font.family = getComputedStyle(document.body).fontFamily; // one font everywhere
 Chart.defaults.color = MUTED_COLOR;
 
 const charts = { timeline: null, topRoutes: null, topRouteNames: [] };
@@ -493,7 +430,7 @@ function indexLevel(index) {
 }
 
 function renderDensityIndex(index) {
-  document.getElementById("stat-index").textContent = index ?? "–";
+  document.getElementById("stat-index").textContent = index === null ? "–" : index;
   document.getElementById("stat-index-level").innerHTML = index === null ? "" : badge(indexLevel(index));
 }
 
@@ -503,7 +440,7 @@ function renderAnalyticsTables(data) {
     ? data.top_routes.map((r) => `
         <tr><td><span class="route-tag">${r.route_id}</span> ${r.route_name}</td>
             <td>${Math.round(r.high_share * 100)}%</td></tr>`).join("")
-    : '<tr><td colspan="2" class="hint">Məlumat yoxdur</td></tr>';
+    : '<tr><td colspan="2" class="empty">Hələ yüksək sıxlıq bildirilməyib.</td></tr>';
   document.getElementById("timeline-table").innerHTML = [...data.timeline].reverse().map((m) => `
     <tr><td>${minuteLabel(m.minute)}</td><td>${m.low}</td><td>${m.medium}</td><td>${m.high}</td></tr>`).join("");
 }
@@ -520,7 +457,7 @@ async function refreshAnalytics() {
 
 async function refresh() {
   const [buses, densities, alerts, forecasts] = await Promise.all([
-    state.live ? state.buses : api("/api/buses"), // pushed by the stream while live
+    live.connected ? state.buses : api("/api/buses"), // pushed by the stream while live
     api("/api/operator/density"),
     api("/api/operator/alerts"),
     api("/api/operator/forecast"),
@@ -573,26 +510,7 @@ document.getElementById("density-body").addEventListener("click", async (event) 
   refresh();
 });
 
-// --- Live updates: Server-Sent Events, with polling as the automatic fallback ---
-
-function setLive(live) {
-  state.live = live;
-  const indicator = document.getElementById("live-indicator");
-  indicator.textContent = live ? "Canlı" : "Polling";
-  indicator.classList.toggle("live", live);
-}
-
-// While the stream is open, bus positions arrive by push; on any error we drop back to
-// polling (EventSource keeps retrying by itself and we switch back when it reconnects).
-function startLiveStream(handlers) {
-  if (!window.EventSource) return;
-  const source = new EventSource("/api/stream");
-  source.addEventListener("open", () => setLive(true));
-  source.addEventListener("error", () => setLive(false));
-  for (const [event, handle] of Object.entries(handlers)) {
-    source.addEventListener(event, (message) => handle(JSON.parse(message.data)));
-  }
-}
+// --- Start ---
 
 function onLiveBuses(buses) {
   state.buses = buses;

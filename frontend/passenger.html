@@ -15,17 +15,22 @@
       <a href="operator.html">Operator</a>
     </nav>
     <span id="live-indicator" class="live-indicator" title="Məlumat yenilənməsi">Polling</span>
-    <div class="route-picker">
-      <input id="route-search" type="search" placeholder="Marşrut və ya dayanacaq axtar…"
-             aria-label="Marşrut axtar">
-      <select id="route-select" aria-label="Marşrut"></select>
-    </div>
   </header>
 
   <main class="layout">
-    <div id="map"></div>
+    <div id="map" class="map"></div>
 
     <aside class="sidebar">
+      <section class="card">
+        <h2>Marşrutlar <span class="muted">(3-ə qədər)</span></h2>
+        <div class="route-add">
+          <input id="route-search" class="input" type="search" placeholder="Nömrə, marşrut və ya dayanacaq…"
+                 aria-label="Marşrut axtar">
+          <select id="route-select" class="input" aria-label="Marşrut əlavə et"></select>
+        </div>
+        <ul id="route-chips" class="chips"></ul>
+      </section>
+
       <section id="eta-card" class="card" hidden>
         <div class="card-head">
           <h2 id="eta-title"></h2>
@@ -36,11 +41,11 @@
 
       <section class="card">
         <h2>Dayanacaqlar</h2>
-        <p class="hint">Gəliş vaxtını görmək üçün dayanacağa, sıxlığı bildirmək üçün avtobusa toxunun.</p>
-        <ol id="stop-list" class="stop-list"></ol>
+        <p class="hint">Gəliş vaxtı üçün dayanacağa, sıxlığı bildirmək üçün avtobusa toxunun.</p>
+        <div id="stop-list"></div>
       </section>
 
-      <section class="card legend">
+      <section class="card legend" aria-label="Sıxlıq rəngləri">
         <span><i class="dot density-low"></i>Aşağı</span>
         <span><i class="dot density-medium"></i>Orta</span>
         <span><i class="dot density-high"></i>Yüksək</span>
@@ -66,6 +71,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="js/common.js"></script>
   <script src="js/passenger.js"></script>
 </body>
 </html>

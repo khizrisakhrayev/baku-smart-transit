@@ -9,7 +9,7 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">🚌 Bakı Ağıllı Nəqliyyat · Operator paneli</div>
+    <div class="brand">🚌 Bakı Ağıllı Nəqliyyat · Operator</div>
     <nav class="nav">
       <a href="passenger.html">Sərnişin</a>
       <a href="operator.html" class="active">Operator</a>
@@ -18,6 +18,7 @@
   </header>
 
   <main class="dashboard">
+    <!-- Always visible -->
     <section class="summary">
       <div class="card stat">
         <span class="stat-label">Aktiv avtobuslar</span>
@@ -41,81 +42,99 @@
       </div>
     </section>
 
-    <section class="card map-card">
-      <div id="map"></div>
-      <div class="legend">
-        <span><i class="dot density-low"></i>Aşağı</span>
-        <span><i class="dot density-medium"></i>Orta</span>
-        <span><i class="dot density-high"></i>Yüksək</span>
-        <span><i class="dot density-unknown"></i>Məlum deyil</span>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="map" aria-selected="true">Xəritə</button>
+      <button class="tab" role="tab" data-tab="alerts" aria-selected="false" id="alerts-tab">
+        Alertlər <span id="alert-count" class="count-badge" hidden>0</span>
+      </button>
+      <button class="tab" role="tab" data-tab="analytics" aria-selected="false">Analitika</button>
+    </div>
+
+    <!-- Tab: Xəritə -->
+    <section class="panel map-panel" data-panel="map" role="tabpanel">
+      <div class="card map-card">
+        <div id="map" class="map"></div>
+        <div class="legend">
+          <span><i class="dot density-low"></i>Aşağı</span>
+          <span><i class="dot density-medium"></i>Orta</span>
+          <span><i class="dot density-high"></i>Yüksək</span>
+          <span><i class="dot density-unknown"></i>Məlum deyil</span>
+          <span class="muted">Boz xətlər: problemsiz marşrutlar</span>
+        </div>
+      </div>
+      <div class="card routes-card">
+        <h2>Marşrutlar</h2>
+        <input id="route-search" class="input" type="search" placeholder="Nömrə, marşrut və ya dayanacaq…"
+               aria-label="Marşrut axtar">
+        <p class="hint">Problemli marşrutlar yuxarıdadır. Xəritədə göstərmək üçün seçin.</p>
+        <ul id="route-list" class="route-list"></ul>
       </div>
     </section>
 
-    <aside class="side">
-      <section id="alerts-card" class="card alerts-card">
-        <h2>Xəbərdarlıqlar</h2>
+    <!-- Tab: Alertlər -->
+    <section class="panel" data-panel="alerts" role="tabpanel" hidden>
+      <div id="alerts-card" class="card">
+        <h2>Xəbərdarlıqlar və proqnozlar</h2>
         <ul id="alert-list" class="alert-list"></ul>
-      </section>
-
-      <section class="card routes-card">
-        <h2>Marşrutlar</h2>
-        <input id="route-search" class="search" type="search" placeholder="Marşrut və ya dayanacaq axtar…"
-               aria-label="Marşrut axtar">
-        <p class="hint">Problemli marşrutlar yuxarıdadır. Seçmək üçün toxunun.</p>
-        <ul id="route-list" class="route-list"></ul>
-      </section>
-    </aside>
-
-    <section class="card analytics-card">
-      <h2>Analitika</h2>
-      <div class="charts">
-        <figure class="chart">
-          <figcaption>Son 30 dəqiqədə bildirişlər (bütün şəbəkə)</figcaption>
-          <div class="chart-box"><canvas id="timeline-chart"
-               aria-label="Son 30 dəqiqədə səviyyələr üzrə bildiriş sayı" role="img"></canvas></div>
-        </figure>
-        <figure class="chart">
-          <figcaption>Ən sıx 10 marşrut — “Yüksək” bildirişlərin payı</figcaption>
-          <div class="chart-box"><canvas id="top-routes-chart"
-               aria-label="Yüksək sıxlıq payına görə ən sıx 10 marşrut" role="img"></canvas></div>
-          <p id="top-routes-empty" class="hint chart-empty" hidden>Hələ yüksək sıxlıq bildirilməyib</p>
-        </figure>
       </div>
-      <details class="table-view">
-        <summary>Cədvəl görünüşü</summary>
-        <div class="table-view-grid">
-          <table class="density-table">
-            <thead><tr><th>Marşrut</th><th>Yüksək payı</th></tr></thead>
-            <tbody id="top-routes-table"></tbody>
-          </table>
-          <table class="density-table">
-            <thead><tr><th>Dəqiqə</th><th>Aşağı</th><th>Orta</th><th>Yüksək</th></tr></thead>
-            <tbody id="timeline-table"></tbody>
+    </section>
+
+    <!-- Tab: Analitika -->
+    <section class="panel stack" data-panel="analytics" role="tabpanel" hidden>
+      <div class="card">
+        <h2>Analitika</h2>
+        <div class="charts">
+          <figure class="chart">
+            <figcaption>Son 30 dəqiqədə bildirişlər (bütün şəbəkə)</figcaption>
+            <div class="chart-box"><canvas id="timeline-chart"
+                 aria-label="Son 30 dəqiqədə səviyyələr üzrə bildiriş sayı" role="img"></canvas></div>
+          </figure>
+          <figure class="chart">
+            <figcaption>Ən sıx 10 marşrut — “Yüksək” bildirişlərin payı</figcaption>
+            <div class="chart-box"><canvas id="top-routes-chart"
+                 aria-label="Yüksək sıxlıq payına görə ən sıx 10 marşrut" role="img"></canvas></div>
+            <p id="top-routes-empty" class="empty chart-empty" hidden>
+              Hələ yüksək sıxlıq bildirilməyib. Bildirişlər gəldikcə burada görünəcək.
+            </p>
+          </figure>
+        </div>
+        <details class="table-view">
+          <summary>Cədvəl görünüşü</summary>
+          <div class="table-view-grid">
+            <table class="table">
+              <thead><tr><th>Marşrut</th><th>Yüksək payı</th></tr></thead>
+              <tbody id="top-routes-table"></tbody>
+            </table>
+            <table class="table">
+              <thead><tr><th>Dəqiqə</th><th>Aşağı</th><th>Orta</th><th>Yüksək</th></tr></thead>
+              <tbody id="timeline-table"></tbody>
+            </table>
+          </div>
+        </details>
+      </div>
+
+      <div class="card">
+        <h2>Marşrutlar üzrə sıxlıq</h2>
+        <p class="hint">Ciddilik sırası ilə. “Demo” düyməsi marşruta yüksək sıxlıq bildirişləri göndərir.</p>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Marşrut</th>
+                <th>Avtobus</th>
+                <th>Aşağı</th>
+                <th>Orta</th>
+                <th>Yüksək</th>
+                <th>Əsas səviyyə</th>
+                <th>Trend</th>
+                <th>Etibarlılıq</th>
+                <th>Son bildiriş</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="density-body"></tbody>
           </table>
         </div>
-      </details>
-    </section>
-
-    <section class="card table-card">
-      <h2>Marşrutlar üzrə sıxlıq</h2>
-      <div class="table-wrap">
-        <table class="density-table">
-          <thead>
-            <tr>
-              <th>Marşrut</th>
-              <th>Avtobus</th>
-              <th>Aşağı</th>
-              <th>Orta</th>
-              <th>Yüksək</th>
-              <th>Əsas səviyyə</th>
-              <th>Trend</th>
-              <th>Etibarlılıq</th>
-              <th>Son bildiriş</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody id="density-body"></tbody>
-        </table>
       </div>
     </section>
   </main>
@@ -124,6 +143,7 @@
 
   <script src="vendor/leaflet/leaflet.js"></script>
   <script src="vendor/chartjs/chart.umd.js"></script>
+  <script src="js/common.js"></script>
   <script src="js/operator.js"></script>
 </body>
 </html>
