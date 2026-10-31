@@ -2,6 +2,7 @@
 
 const MAX_ROUTES = 3;
 const STOP_ZOOM = 14; // stop dots appear from this zoom (the selected stop always shows)
+const SELECTION_KEY = "passengerSelection"; // localStorage: {routes: [...], stopId}
 
 const state = {
   routes: {},         // route id -> route (with stops)
@@ -27,7 +28,32 @@ async function loadRoutes() {
     if (event.target.value) addRoute(event.target.value);
   });
   fillRouteSelect();
-  addRoute(routes[0].id);
+  restoreSelection();
+}
+
+// --- Remembered selection (so switching to Operator and back keeps it) ---
+
+function saveSelection() {
+  const selection = { routes: state.selected, stopId: state.stop ? state.stop.id : null };
+  localStorage.setItem(SELECTION_KEY, JSON.stringify(selection));
+}
+
+function readSelection() {
+  try {
+    return JSON.parse(localStorage.getItem(SELECTION_KEY)) || {};
+  } catch (error) {
+    return {}; // corrupted value: start fresh
+  }
+}
+
+function restoreSelection() {
+  const saved = readSelection(); // read first: adding routes below saves over it
+  const routeIds = (saved.routes || []).filter((id) => state.routes[id]).slice(0, MAX_ROUTES);
+  if (!routeIds.length) routeIds.push(Object.keys(state.routes)[0]); // first visit
+  routeIds.forEach(addRoute);
+  map.fitBounds(L.featureGroup(Object.values(state.lines)).getBounds(), { padding: [40, 40] });
+  const stop = state.selected.flatMap((id) => state.routes[id].stops).find((s) => s.id === saved.stopId);
+  if (stop) showStop(stop);
 }
 
 function fillRouteSelect() {
@@ -66,6 +92,7 @@ function removeRoute(routeId) {
 }
 
 function onRoutesChanged() {
+  saveSelection();
   document.getElementById("route-search").value = "";
   fillRouteSelect();
   renderChips();
@@ -138,6 +165,7 @@ function renderStopList() {
 
 function showStop(stop) {
   state.stop = stop;
+  saveSelection();
   document.getElementById("eta-title").textContent = stop.name;
   show("eta-card");
   renderStopList();
@@ -147,6 +175,7 @@ function showStop(stop) {
 
 function closeEta() {
   state.stop = null;
+  saveSelection();
   hide("eta-card");
   renderStopList();
   drawStops();

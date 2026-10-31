@@ -20,6 +20,8 @@ const state = {
   knownAlertIds: null,    // alert ids seen so far; null until the first load
   forecasts: {},          // route id -> /api/operator/forecast entry
   buses: [],              // latest bus positions (from the live stream or polling)
+  pending: {},            // route id -> {high_reports, seconds_remaining}: high, no alert yet
+  rule: null,             // {window_sec, required_reports} from /api/operator/pending
 };
 
 const map = createMap("map");
@@ -189,8 +191,38 @@ function renderRouteList() {
       <span class="route-tag ${densityClass(d.dominant_level)}">${d.route_id}</span>
       <span class="route-name">${d.route_name}</span>
       ${state.alertRouteIds.has(d.route_id) ? '<span class="alert-icon" title="Aktiv xəbərdarlıq">⚠</span>' : ""}
+      ${pendingTag(d.route_id)}
       ${badge(d.dominant_level)}
     </li>`).join("");
+}
+
+// --- Pending: high so far, alert not yet (mirrors the backend anomaly rule) ---
+
+function pendingText(p) {
+  return `Yüksək sıxlıq izlənilir: ${p.high_reports}/${state.rule.required_reports} bildiriş, ` +
+         `alertə qədər ~${p.seconds_remaining} san`;
+}
+
+function pendingTag(routeId) {
+  const p = state.pending[routeId];
+  if (!p) return "";
+  return `<span class="pending-tag" title="${pendingText(p)}">⏳ ${p.high_reports}/${state.rule.required_reports}</span>`;
+}
+
+function pendingItems() {
+  return Object.entries(state.pending).map(([routeId, p]) => `
+    <li class="alert-item pending">
+      <strong>Marşrut ${routeLabel(routeId)}</strong>
+      <div>⏳ ${pendingText(p)}</div>
+    </li>`).join("");
+}
+
+function renderRule() {
+  const { window_sec, required_reports } = state.rule;
+  const minutes = window_sec >= 120 ? ` (${Math.round(window_sec / 60)} dəq)` : "";
+  document.getElementById("alert-rule").textContent =
+    `Alert üçün xətt ${window_sec} san${minutes} ərzində ardıcıl Yüksək qalmalıdır ` +
+    `(ən azı ${required_reports} bildiriş).`;
 }
 
 // Small bar + percentage for the route's confidence score (0-1).
@@ -262,7 +294,7 @@ function warningItems() {
 
 function renderAlerts(alerts) {
   const list = document.getElementById("alert-list");
-  const warnings = warningItems();
+  const warnings = pendingItems() + warningItems();
   if (!alerts.length && !warnings) {
     list.innerHTML = '<li class="empty">Hazırda xəbərdarlıq yoxdur. Yeni xəbərdarlıqlar və proqnozlar burada görünəcək.</li>';
     return;
@@ -456,12 +488,16 @@ async function refreshAnalytics() {
 // --- Polling ---
 
 async function refresh() {
-  const [buses, densities, alerts, forecasts] = await Promise.all([
+  const [buses, densities, alerts, forecasts, pending] = await Promise.all([
     live.connected ? state.buses : api("/api/buses"), // pushed by the stream while live
     api("/api/operator/density"),
     api("/api/operator/alerts"),
     api("/api/operator/forecast"),
+    api("/api/operator/pending"),
   ]);
+  state.rule = { window_sec: pending.window_sec, required_reports: pending.required_reports };
+  state.pending = Object.fromEntries(pending.routes.map((p) => [p.route_id, p]));
+  renderRule();
   state.buses = buses;
   state.densities = densities;
   state.forecasts = Object.fromEntries(forecasts.map((f) => [f.route_id, f]));

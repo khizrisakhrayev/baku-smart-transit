@@ -88,6 +88,19 @@ class RouteDensity(BaseModel):
     last_report_at: datetime | None
 
 
+class PendingRoute(BaseModel):
+    """A route with a current "high" run that has not (yet) become an alert."""
+    route_id: str
+    high_reports: int        # high reports in the current run
+    seconds_remaining: int   # until the run spans the anomaly window (0 = window reached)
+
+
+class PendingSummary(BaseModel):
+    window_sec: int          # the anomaly window, for the operator's help text
+    required_reports: int
+    routes: list[PendingRoute]
+
+
 class RouteForecast(BaseModel):
     """15-minute density forecast for one route (see forecast.py)."""
     route_id: str

@@ -124,3 +124,11 @@ def test_flood_again_after_resolve_reopens_alert():
 
 def test_flood_unknown_route():
     assert client.post("/api/demo/flood-high", params={"route_id": "999"}).status_code == 404
+
+
+def test_pending_endpoint():
+    report("high", route_id="5", bus_id="5-1")
+    body = client.get("/api/operator/pending").json()
+    assert body["window_sec"] == 600 and body["required_reports"] == config.MIN_HIGH_REPORTS
+    assert [(p["route_id"], p["high_reports"]) for p in body["routes"]] == [("5", 1)]
+    assert 590 <= body["routes"][0]["seconds_remaining"] <= 600

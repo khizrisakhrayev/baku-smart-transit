@@ -137,3 +137,61 @@ def test_reports_persist_in_sqlite_file(tmp_path):
     reopened = Store(db_file)
     assert [r.level for r in reopened.reports_for_route("5")] == ["low"]
     assert reopened.reports_for_route("5")[0].timestamp == T0
+
+
+# --- Pending ("being watched") status ---
+
+def test_pending_status_counts_run_and_time_left():
+    data = reports(("low", 0), ("high", 1), ("high", 3))
+    count, seconds = anomaly.pending_status(data, WINDOW, now=at(4))
+    assert count == 2
+    assert seconds == pytest.approx(7 * 60)  # run started at minute 1, window ends at minute 11
+
+
+def test_pending_status_resets_after_non_high_report():
+    data = reports(("high", 0), ("high", 2), ("medium", 3), ("high", 4))
+    assert anomaly.pending_status(data, WINDOW, now=at(4)) == (1, pytest.approx(10 * 60))
+
+
+def test_pending_status_none_when_latest_is_not_high():
+    assert anomaly.pending_status(reports(("high", 0), ("low", 1)), WINDOW, now=at(2)) is None
+    assert anomaly.pending_status([], WINDOW, now=at(0)) is None
+
+
+def test_pending_seconds_never_negative():
+    count, seconds = anomaly.pending_status(reports(("high", 0), ("high", 12)), WINDOW, now=at(13))
+    assert (count, seconds) == (2, 0)  # window reached; it only needs a 3rd report
+
+
+@pytest.fixture
+def network(store) -> Store:
+    for route in ROUTES:
+        store.add_route(route)
+    return store
+
+
+def test_pending_lists_watched_routes(network):
+    add(network, "high", 0, "5")
+    add(network, "high", 2, "88")
+    add(network, "low", 2, "1")
+    summary = anomaly.pending(network, now=at(3))
+    assert (summary.window_sec, summary.required_reports) == (WINDOW, config.MIN_HIGH_REPORTS)
+    by_route = {p.route_id: p for p in summary.routes}
+    assert set(by_route) == {"5", "88"}
+    assert (by_route["5"].high_reports, by_route["5"].seconds_remaining) == (1, 7 * 60)
+    assert by_route["88"].seconds_remaining == 9 * 60
+
+
+def test_pending_skips_routes_with_active_alert(network):
+    add_high_run(network, route_id="5")
+    anomaly.check_route(network, "5", now=at(10))
+    assert anomaly.pending(network, now=at(11)).routes == []
+
+
+def test_pending_skips_handled_run_until_new_report(network):
+    add_high_run(network, route_id="5")
+    alert = anomaly.check_route(network, "5", now=at(10))
+    network.resolve_alert(alert.id, resolved_at=at(11))
+    assert anomaly.pending(network, now=at(12)).routes == []
+    add(network, "high", 13, "5")  # a new high report: the route is watched again
+    assert [p.route_id for p in anomaly.pending(network, now=at(13)).routes] == ["5"]

@@ -148,3 +148,12 @@ Update common.js/style.css rather than duplicating. Run pytest -q and commit."
 - **Prompt:** "Change the default of MAX_REPORT_DISTANCE_M in config.py to 0 (disabled), since GPS is simulated. Keep the feature: document in README/config that setting it to e.g. 500 enables the proximity check for real GPS. Update tests accordingly, run pytest -q and commit."
 - **Summary:** Proximity check now off by default (MAX_REPORT_DISTANCE_M=0) with docs in config.py, trust.py and a new README.md (run, demo mode, settings); distance tests enable the check explicitly and new tests cover the disabled default.
 - **Files changed:** backend/app/config.py, backend/app/trust.py, README.md, tests/test_trust.py, AI_DECLARATION.md
+
+## 2026-10-31 15:15
+- **Tool:** Claude Code
+- **Prompt:** "Two small UX fixes, no rule changes:
+1) Passenger page: persist selected routes and selected stop in localStorage and restore them on load, so switching to Operator and back keeps the selection.
+2) Operator page: for routes whose latest reports are \"high\" but no alert yet, show a pending indicator in the Alertlər tab and the route list: \"Yüksək sıxlıq izlənilir: 1/3 bildiriş, alertə qədər ~X san\". Expose this from the anomaly logic (count in current high run and seconds remaining to reach the window). Add a short help text: \"Alert üçün xətt ANOMALY_WINDOW_SEC ərzində ardıcıl Yüksək qalmalıdır\".
+Test the pending calculation. Run pytest -q and commit."
+- **Summary:** Passenger selection (routes + stop) saved to and restored from localStorage. anomaly.py gains pending_status/pending (sharing the rule's report window and "already handled" check, rule unchanged) exposed via GET /api/operator/pending; operator shows pending items, ⏳ tags in the route list and the rule help text with the real window. Pending unit and API tests added.
+- **Files changed:** backend/app/anomaly.py, backend/app/models.py, backend/app/main.py, frontend/js/passenger.js, frontend/js/operator.js, frontend/operator.html, frontend/css/style.css, tests/test_anomaly.py, tests/test_operator_api.py, AI_DECLARATION.md
