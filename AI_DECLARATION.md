@@ -35,3 +35,15 @@ timestamp, the tool used, the exact prompt, a short summary of what was generate
 Unit-test the anomaly rule with fake timestamps (no sleeping) and API-test the endpoints."
 - **Summary:** Moved reports and alerts to SQLite, added the anomaly rule with a background checker, per-route density overview, alert list/resolve endpoints, a demo flood endpoint (backdated high reports), and SIM_TIME_SCALE=15 for 2.5-minute segment ETAs; with anomaly unit tests and operator API tests.
 - **Files changed:** backend/app/models.py, backend/app/store.py, backend/app/anomaly.py, backend/app/density.py, backend/app/eta.py, backend/app/main.py, tests/conftest.py, tests/test_anomaly.py, tests/test_operator_api.py, tests/test_api.py, tests/test_eta.py, AI_DECLARATION.md
+
+## 2026-10-31 12:32
+- **Tool:** Claude Code
+- **Prompt:** "Small fix first: in demo flood-high, place the oldest report slightly inside the window so density shows high: 3.
+Then build frontend/passenger.html + js/passenger.js + css/style.css (UI text in Azerbaijani, mobile-friendly, clean modern look).
+- Route dropdown from /api/routes. Leaflet map with OpenStreetMap tiles centered on Baku, showing the route polyline and stops.
+- Live bus markers from /api/buses?route_id, polled every 3s, marker color by density (green low, orange medium, red high, grey unknown).
+- Clicking a stop (or a stop list) shows ETA list from /api/stops/{id}/eta: bus, minutes, density badge.
+- Clicking a bus opens a panel with three buttons \"Aşağı / Orta / Yüksək\" that POST /api/reports and show a toast \"Təşəkkürlər, bildirişiniz qəbul edildi\".
+Keep JS plain and readable, no build tools."
+- **Summary:** Demo flood now adds one anchor report at the window start plus 3 inside the window (density shows high: 3, alert still fires); /api/buses accepts route_id. Built the passenger page: Leaflet map with route, stops, live density-colored bus markers, stop ETA list, bus report panel and toast.
+- **Files changed:** backend/app/main.py, tests/test_api.py, tests/test_operator_api.py, frontend/passenger.html, frontend/js/passenger.js, frontend/css/style.css, AI_DECLARATION.md

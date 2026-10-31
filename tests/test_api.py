@@ -47,6 +47,13 @@ def test_eta_unknown_stop():
     assert client.get("/api/stops/nowhere/eta").status_code == 404
 
 
+def test_buses_filtered_by_route():
+    buses = client.get("/api/buses", params={"route_id": "65"}).json()
+    assert len(buses) == simulator.BUSES_PER_ROUTE
+    assert {b["route_id"] for b in buses} == {"65"}
+    assert len(client.get("/api/buses").json()) == len(ROUTES) * simulator.BUSES_PER_ROUTE
+
+
 def test_create_report():
     response = report()
     assert response.status_code == 201

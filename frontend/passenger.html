@@ -4,10 +4,64 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bakı Ağıllı Nəqliyyat — Sərnişin</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <h1>Sərnişin paneli</h1>
+  <header class="topbar">
+    <div class="brand">🚌 Bakı Ağıllı Nəqliyyat</div>
+    <label class="route-picker">
+      <span>Marşrut</span>
+      <select id="route-select"></select>
+    </label>
+  </header>
+
+  <main class="layout">
+    <div id="map"></div>
+
+    <aside class="sidebar">
+      <section id="eta-card" class="card" hidden>
+        <div class="card-head">
+          <h2 id="eta-title"></h2>
+          <button class="close" data-close="eta-card" aria-label="Bağla">×</button>
+        </div>
+        <ul id="eta-list" class="eta-list"></ul>
+      </section>
+
+      <section class="card">
+        <h2>Dayanacaqlar</h2>
+        <p class="hint">Gəliş vaxtını görmək üçün dayanacağa, sıxlığı bildirmək üçün avtobusa toxunun.</p>
+        <ol id="stop-list" class="stop-list"></ol>
+      </section>
+
+      <section class="card legend">
+        <span><i class="dot density-low"></i>Aşağı</span>
+        <span><i class="dot density-medium"></i>Orta</span>
+        <span><i class="dot density-high"></i>Yüksək</span>
+        <span><i class="dot density-unknown"></i>Məlum deyil</span>
+      </section>
+    </aside>
+  </main>
+
+  <section id="bus-panel" class="sheet" hidden>
+    <div class="card-head">
+      <h2 id="bus-title"></h2>
+      <button class="close" data-close="bus-panel" aria-label="Bağla">×</button>
+    </div>
+    <p>Hazırkı sıxlıq: <span id="bus-density" class="badge"></span></p>
+    <p class="hint">Avtobus nə qədər doludur?</p>
+    <div class="report-buttons">
+      <button class="btn density-low" data-level="low">Aşağı</button>
+      <button class="btn density-medium" data-level="medium">Orta</button>
+      <button class="btn density-high" data-level="high">Yüksək</button>
+    </div>
+  </section>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="js/passenger.js"></script>
 </body>
 </html>

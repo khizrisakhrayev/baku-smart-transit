@@ -99,10 +99,17 @@ def test_flood_high_creates_alert_immediately():
     response = client.post("/api/demo/flood-high", params={"route_id": "88"})
     assert response.status_code == 200
     body = response.json()
-    assert body["reports_added"] == anomaly.MIN_HIGH_REPORTS
+    assert body["reports_added"] == anomaly.MIN_HIGH_REPORTS + 1
     assert body["alert"]["route_id"] == "88"
     buses = [b for b in client.get("/api/buses").json() if b["route_id"] == "88"]
     assert all(b["density"] == "high" for b in buses)
+
+
+def test_flood_shows_high_reports_in_density():
+    client.post("/api/demo/flood-high", params={"route_id": "88"})
+    d = density_of("88")
+    assert d["counts"]["high"] == anomaly.MIN_HIGH_REPORTS
+    assert d["dominant_level"] == "high"
 
 
 def test_flood_again_after_resolve_reopens_alert():

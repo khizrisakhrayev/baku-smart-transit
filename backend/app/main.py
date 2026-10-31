@@ -58,7 +58,10 @@ def list_routes() -> list[Route]:
 
 
 @app.get("/api/buses")
-def list_buses() -> list[Bus]:
+def list_buses(route_id: str | None = None) -> list[Bus]:
+    """All buses, or only those of `route_id` if given."""
+    if route_id is not None:
+        return store.buses_on_route(route_id)
     return list(store.buses.values())
 
 
@@ -108,19 +111,20 @@ def resolve_alert(alert_id: int) -> Alert:
 
 @app.post("/api/demo/flood-high")
 def demo_flood_high(route_id: str) -> dict:
-    """Add MIN_HIGH_REPORTS "high" reports backdated evenly across the anomaly window,
-    so the alert fires right away instead of after waiting the full window."""
+    """Add backdated "high" reports so the alert fires right away instead of after
+    waiting the full window: one at the window start (so the high run spans the whole
+    window) plus MIN_HIGH_REPORTS spread inside it (so the density overview counts them)."""
     get_route_or_404(route_id)
     buses = store.buses_on_route(route_id)
+    window = anomaly.ANOMALY_WINDOW_SEC
     count = anomaly.MIN_HIGH_REPORTS
-    step = anomaly.ANOMALY_WINDOW_SEC / (count - 1)
+    ages = [window * k / count for k in range(count, -1, -1)]  # e.g. 600, 400, 200, 0 s
     now = utcnow()
-    for i in range(count):
-        timestamp = now - timedelta(seconds=step * (count - 1 - i))
+    for i, age in enumerate(ages):
         report_in = ReportIn(route_id=route_id, bus_id=buses[i % len(buses)].id, level="high")
-        store.add_report(report_in, timestamp=timestamp)
+        store.add_report(report_in, timestamp=now - timedelta(seconds=age))
     alert = anomaly.check_route(store, route_id, now)
-    return {"reports_added": count, "alert": alert}
+    return {"reports_added": len(ages), "alert": alert}
 
 
 # Mounted last so /api/* routes take priority over static files.

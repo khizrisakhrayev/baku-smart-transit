@@ -1,5 +1,239 @@
+/* Shared styles for the passenger and operator views. Mobile first. */
+
+:root {
+  --bg: #f4f6fa;
+  --card: #ffffff;
+  --text: #1c2333;
+  --muted: #6b7489;
+  --border: #e3e7ef;
+  --primary: #2563eb;
+  --low: #22a06b;
+  --medium: #f59e0b;
+  --high: #e5484d;
+  --unknown: #8a94a6;
+  --radius: 14px;
+  --shadow: 0 4px 18px rgba(28, 35, 51, 0.08);
+}
+
+* { box-sizing: border-box; }
+
 body {
-  font-family: system-ui, sans-serif;
   margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+h2 { font-size: 1rem; margin: 0 0 0.5rem; }
+
+/* --- Top bar --- */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: var(--primary);
+  color: #fff;
+  box-shadow: var(--shadow);
+}
+
+.brand { font-weight: 700; font-size: 1.1rem; }
+
+.route-picker { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; }
+
+.route-picker select {
+  padding: 0.45rem 0.6rem;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  max-width: 70vw;
+}
+
+/* --- Layout: map on top (mobile), map + sidebar side by side (desktop) --- */
+
+.layout { display: flex; flex-direction: column; }
+
+#map { height: 55vh; }
+
+.sidebar { padding: 0.75rem; display: flex; flex-direction: column; gap: 0.75rem; }
+
+@media (min-width: 900px) {
+  .layout { flex-direction: row; height: calc(100vh - 58px); }
+  #map { flex: 1; height: 100%; }
+  .sidebar { width: 380px; overflow-y: auto; }
+}
+
+/* --- Cards --- */
+
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
   padding: 1rem;
 }
+
+.card-head { display: flex; align-items: center; justify-content: space-between; }
+
+.close {
+  border: none;
+  background: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.hint { color: var(--muted); font-size: 0.85rem; margin: 0 0 0.75rem; }
+
+/* --- Stop list --- */
+
+.stop-list { margin: 0; padding-left: 1.4rem; }
+
+.stop-list li {
+  padding: 0.5rem 0.4rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.stop-list li:hover { background: var(--bg); }
+.stop-list li.active { background: #e8efff; color: var(--primary); font-weight: 600; }
+
+/* --- ETA list --- */
+
+.eta-list { list-style: none; margin: 0; padding: 0; }
+
+.eta-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.eta-list li:last-child { border-bottom: none; }
+
+.route-tag {
+  min-width: 2rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 6px;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+.eta-bus { flex: 1; font-size: 0.9rem; }
+.eta-time { white-space: nowrap; }
+
+/* --- Density colors, badges, legend --- */
+
+.density-low { --density: var(--low); }
+.density-medium { --density: var(--medium); }
+.density-high { --density: var(--high); }
+.density-unknown { --density: var(--unknown); }
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: var(--density);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; font-size: 0.85rem; }
+
+.dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 0.35rem;
+  border-radius: 50%;
+  background: var(--density);
+  vertical-align: -1px;
+}
+
+/* --- Bus markers on the map --- */
+
+.bus-marker {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  background: var(--density);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+}
+
+/* Glide markers between position updates (but not while zooming). */
+.leaflet-marker-icon.bus-icon { transition: transform 2.8s linear; }
+.leaflet-zoom-anim .leaflet-marker-icon.bus-icon { transition: none; }
+
+/* --- Bus report panel (bottom sheet) --- */
+
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1100;
+  padding: 1rem 1rem 1.5rem;
+  background: var(--card);
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: 0 -6px 24px rgba(28, 35, 51, 0.18);
+}
+
+@media (min-width: 900px) {
+  .sheet { left: auto; right: 1rem; bottom: 1rem; width: 360px; border-radius: var(--radius); }
+}
+
+.report-buttons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; }
+
+.btn {
+  padding: 0.8rem 0.5rem;
+  border: none;
+  border-radius: 10px;
+  background: var(--density);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn:active { transform: scale(0.97); }
+
+/* --- Toast --- */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.5rem;
+  z-index: 1200;
+  transform: translate(-50%, 150%);
+  padding: 0.75rem 1.25rem;
+  border-radius: 999px;
+  background: var(--text);
+  color: #fff;
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transition: transform 0.25s, opacity 0.25s;
+  pointer-events: none;
+}
+
+.toast.visible { transform: translate(-50%, 0); opacity: 1; }
+
+[hidden] { display: none !important; }
