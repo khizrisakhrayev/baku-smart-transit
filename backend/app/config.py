@@ -35,7 +35,8 @@ COMFORT_HORIZON_MIN = 15   # "Ən rahat seçim" considers buses arriving within 
 SYNTHETIC_REPORTS = os.getenv("SYNTHETIC_REPORTS", "1") == "1"
 SYNTHETIC_INTERVAL_SEC = 5
 SYNTHETIC_REPORTS_PER_TICK = 5
-RUSH_PERIOD_SEC = 1800    # rush-hour wave: builds for 15 min, eases for 15 min
+# Rush-hour wave length: builds for half, eases for half. Demo: 6 (early warnings in ~2 min).
+RUSH_PERIOD_MIN = float(os.getenv("RUSH_PERIOD_MIN", "30"))
 CENTRAL_STOP_IDS = ("28-may", "koroglu", "genclik")
 
 # --- Forecast (see forecast.py) ---
@@ -43,6 +44,10 @@ FORECAST_BUCKET_SEC = 60  # one-minute buckets...
 FORECAST_BUCKETS = 10     # ...over the last 10 minutes
 FORECAST_HORIZON_MIN = 15
 TREND_THRESHOLD = 0.05    # score change per minute that counts as rising/falling
+
+# --- Analytics (see analytics.py) ---
+ANALYTICS_MINUTES = 30
+ANALYTICS_TOP_ROUTES = 10
 
 # --- Report trust ---
 REPORT_COOLDOWN_SEC = 60  # one report per client per bus per minute

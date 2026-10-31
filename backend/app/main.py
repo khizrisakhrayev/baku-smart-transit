@@ -11,8 +11,8 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
-from app import alternatives, anomaly, config, density, dispatch, eta, forecast, simulator, synthetic, trust
-from app.models import Alert, Bus, BusEta, Report, ReportIn, Route, RouteDensity, RouteForecast, Stop
+from app import alternatives, analytics, anomaly, config, density, dispatch, eta, forecast, simulator, synthetic, trust
+from app.models import Alert, Analytics, Bus, BusEta, Report, ReportIn, Route, RouteDensity, RouteForecast, Stop
 from app.routes_data import ROUTES
 from app.store import store, utcnow
 
@@ -103,6 +103,11 @@ def operator_density() -> list[RouteDensity]:
 @app.get("/api/operator/forecast")
 def operator_forecast() -> list[RouteForecast]:
     return forecast.summary(store)
+
+
+@app.get("/api/operator/analytics")
+def operator_analytics() -> Analytics:
+    return analytics.summary(store)
 
 
 @app.get("/api/operator/alerts")

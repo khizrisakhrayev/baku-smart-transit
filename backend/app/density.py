@@ -22,9 +22,7 @@ def dominant_level(counts: dict[str, float]) -> str | None:
 def route_summary(store: Store, route: Route, now: datetime) -> RouteDensity:
     """Summarises reports from the last ANOMALY_WINDOW_SEC; last_report_at covers all time."""
     window = config.ANOMALY_WINDOW_SEC
-    reports = store.reports_for_route(route.id)
-    since = now - timedelta(seconds=window)
-    recent = [r for r in reports if r.timestamp >= since]
+    recent = store.reports_for_route(route.id, since=now - timedelta(seconds=window))
 
     counts = {level: 0 for level in LEVELS}
     weighted = {level: 0.0 for level in LEVELS}
@@ -40,7 +38,7 @@ def route_summary(store: Store, route: Route, now: datetime) -> RouteDensity:
         weighted_counts={level: round(w, 2) for level, w in weighted.items()},
         confidence=trust.confidence(recent, now, window),
         bus_count=len(store.buses_on_route(route.id)),
-        last_report_at=reports[-1].timestamp if reports else None,
+        last_report_at=store.last_report_at(route.id),
     )
 
 

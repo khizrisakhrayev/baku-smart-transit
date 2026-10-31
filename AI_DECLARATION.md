@@ -114,3 +114,14 @@ Unit-test the suggestion rules (same route, other route, too long wait, no alter
 Unit-test the trend fit and predicted levels with fixed data. Commit."
 - **Summary:** Seeded per-route random start offsets in the simulator; synthetic.py background reports with a rush-hour wave on central routes; forecast.py (1-min buckets, least-squares trend, 15-min prediction, early warning) with GET /api/operator/forecast; operator early-warning items and trend arrows; forecast, synthetic and offset tests.
 - **Files changed:** backend/app/config.py, backend/app/simulator.py, backend/app/synthetic.py, backend/app/forecast.py, backend/app/models.py, backend/app/main.py, frontend/operator.html, frontend/js/operator.js, frontend/css/style.css, tests/conftest.py, tests/test_forecast.py, tests/test_synthetic.py, AI_DECLARATION.md
+
+## 2026-10-31 14:10
+- **Tool:** Claude Code
+- **Prompt:** "1) Performance: density/anomaly/forecast should query only reports within the needed time range (indexed SQL by route_id and timestamp), not full history.
+2) Demo speed: add RUSH_PERIOD_MIN to config (default 30, demo 6) so early warnings appear within ~2 minutes in demo mode.
+3) Analytics: GET /api/operator/analytics returns per-minute report counts by level for the last 30 minutes (whole network) and top 10 routes by weighted high share.
+4) New operator section \"Analitika\" with Chart.js copied into frontend/vendor (no CDN): a stacked area chart of low/medium/high over time and a horizontal bar chart of the top 10 most crowded routes. Refresh every 10s, without re-creating charts (update data only).
+5) Summary card \"Şəbəkə sıxlıq indeksi\" (0-100) on top.
+Keep code readable. Test the analytics endpoint. Commit."
+- **Summary:** Added SQLite indexes and time-ranged report queries (density, anomaly with a 2-window lookback, forecast); RUSH_PERIOD_MIN; analytics.py with GET /api/operator/analytics (30-min timeline, top-10 high share, network density index); operator "Analitika" section with vendored Chart.js 4.4.4 (stacked area + horizontal bar, updated in place, table view) and a density index card; analytics and query tests.
+- **Files changed:** backend/app/store.py, backend/app/density.py, backend/app/anomaly.py, backend/app/forecast.py, backend/app/config.py, backend/app/synthetic.py, backend/app/analytics.py, backend/app/models.py, backend/app/main.py, frontend/operator.html, frontend/js/operator.js, frontend/css/style.css, frontend/vendor/chartjs/*, tests/test_analytics.py, tests/test_synthetic.py, AI_DECLARATION.md

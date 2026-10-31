@@ -30,6 +30,14 @@
         <span class="stat-label">Aktiv xəbərdarlıqlar</span>
         <strong id="stat-alerts" class="stat-value">–</strong>
       </div>
+      <div class="card stat">
+        <span class="stat-label">Şəbəkə sıxlıq indeksi</span>
+        <span class="stat-row">
+          <strong id="stat-index" class="stat-value">–</strong>
+          <span class="stat-unit">/ 100</span>
+          <span id="stat-index-level"></span>
+        </span>
+      </div>
     </section>
 
     <section class="card map-card">
@@ -56,6 +64,36 @@
         <ul id="route-list" class="route-list"></ul>
       </section>
     </aside>
+
+    <section class="card analytics-card">
+      <h2>Analitika</h2>
+      <div class="charts">
+        <figure class="chart">
+          <figcaption>Son 30 dəqiqədə bildirişlər (bütün şəbəkə)</figcaption>
+          <div class="chart-box"><canvas id="timeline-chart"
+               aria-label="Son 30 dəqiqədə səviyyələr üzrə bildiriş sayı" role="img"></canvas></div>
+        </figure>
+        <figure class="chart">
+          <figcaption>Ən sıx 10 marşrut — “Yüksək” bildirişlərin payı</figcaption>
+          <div class="chart-box"><canvas id="top-routes-chart"
+               aria-label="Yüksək sıxlıq payına görə ən sıx 10 marşrut" role="img"></canvas></div>
+          <p id="top-routes-empty" class="hint chart-empty" hidden>Hələ yüksək sıxlıq bildirilməyib</p>
+        </figure>
+      </div>
+      <details class="table-view">
+        <summary>Cədvəl görünüşü</summary>
+        <div class="table-view-grid">
+          <table class="density-table">
+            <thead><tr><th>Marşrut</th><th>Yüksək payı</th></tr></thead>
+            <tbody id="top-routes-table"></tbody>
+          </table>
+          <table class="density-table">
+            <thead><tr><th>Dəqiqə</th><th>Aşağı</th><th>Orta</th><th>Yüksək</th></tr></thead>
+            <tbody id="timeline-table"></tbody>
+          </table>
+        </div>
+      </details>
+    </section>
 
     <section class="card table-card">
       <h2>Marşrutlar üzrə sıxlıq</h2>
@@ -84,6 +122,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="vendor/chartjs/chart.umd.js"></script>
   <script src="js/operator.js"></script>
 </body>
 </html>

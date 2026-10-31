@@ -99,6 +99,27 @@ class RouteForecast(BaseModel):
     early_warning: bool             # predicted high, not high now
 
 
+class MinuteCounts(BaseModel):
+    """Network-wide report counts for one minute (`minute` = start of the minute)."""
+    minute: datetime
+    low: int = 0
+    medium: int = 0
+    high: int = 0
+
+
+class RouteHighShare(BaseModel):
+    route_id: str
+    route_name: str
+    high_share: float     # 0-1, share of "high" in the route's weighted reports
+    weighted_high: float
+
+
+class Analytics(BaseModel):
+    timeline: list[MinuteCounts]
+    top_routes: list[RouteHighShare]
+    density_index: int | None  # 0 (all low) - 100 (all high)
+
+
 class Suggestion(BaseModel):
     """A less crowded bus to wait for instead of a crowded one (see alternatives.py)."""
     bus_id: str

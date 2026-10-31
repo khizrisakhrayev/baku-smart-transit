@@ -27,6 +27,14 @@ CREATE TABLE IF NOT EXISTS alerts (
 );
 """
 
+# Indexes for the time-range queries below (created after the column migration,
+# since the client index needs the newer client_id column).
+INDEXES = """
+CREATE INDEX IF NOT EXISTS idx_reports_route_time ON reports (route_id, timestamp);
+CREATE INDEX IF NOT EXISTS idx_reports_time ON reports (timestamp);
+CREATE INDEX IF NOT EXISTS idx_reports_client_bus ON reports (client_id, bus_id, timestamp);
+"""
+
 # Columns added after the first release; added to older data.db files on open.
 EXTRA_COLUMNS = {
     "alerts": {"donor_route_id": "TEXT", "recommendation": "TEXT", "dispatched_bus_id": "TEXT"},
@@ -52,6 +60,7 @@ class Store:
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
         self._add_missing_columns()
+        self.db.executescript(INDEXES)
         self.routes: dict[str, Route] = {}
         self.buses: dict[str, Bus] = {}
 
@@ -95,14 +104,29 @@ class Store:
             self.buses[report.bus_id].density = report.level
         return report
 
-    def reports_for_route(self, route_id: str) -> list[Report]:
-        """All reports of a route, oldest first."""
+    def reports_for_route(self, route_id: str, since: datetime | None = None) -> list[Report]:
+        """Reports of a route, oldest first; only those at or after `since` if given."""
         rows = self.db.execute(
             "SELECT route_id, bus_id, level, timestamp, client_id FROM reports "
-            "WHERE route_id = ? ORDER BY timestamp, id",
-            (route_id,),
+            "WHERE route_id = ? AND timestamp >= ? ORDER BY timestamp, id",
+            (route_id, _to_text(since) if since else ""),
         )
         return [Report(**dict(row)) for row in rows]
+
+    def reports_since(self, since: datetime) -> list[Report]:
+        """Reports of all routes at or after `since`, oldest first."""
+        rows = self.db.execute(
+            "SELECT route_id, bus_id, level, timestamp, client_id FROM reports "
+            "WHERE timestamp >= ? ORDER BY timestamp, id",
+            (_to_text(since),),
+        )
+        return [Report(**dict(row)) for row in rows]
+
+    def last_report_at(self, route_id: str) -> datetime | None:
+        row = self.db.execute(
+            "SELECT MAX(timestamp) FROM reports WHERE route_id = ?", (route_id,)
+        ).fetchone()
+        return datetime.fromisoformat(row[0]) if row[0] else None
 
     def last_report_time(self, client_id: str, bus_id: str) -> datetime | None:
         """When this client last reported on this bus (for rate limiting)."""

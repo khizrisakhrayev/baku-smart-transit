@@ -8,7 +8,7 @@ from app import config, simulator, synthetic
 from app.routes_data import ROUTES
 from app.store import Store
 
-PEAK = config.RUSH_PERIOD_SEC / 2
+PEAK = config.RUSH_PERIOD_MIN * 60 / 2
 
 
 @pytest.fixture
@@ -25,7 +25,7 @@ def test_synthetic_reports_are_off_in_tests():
 def test_rush_wave_goes_up_and_down():
     assert synthetic.rush_intensity(0) == pytest.approx(0)
     assert synthetic.rush_intensity(PEAK) == pytest.approx(1)
-    assert synthetic.rush_intensity(config.RUSH_PERIOD_SEC) == pytest.approx(0)
+    assert synthetic.rush_intensity(config.RUSH_PERIOD_MIN * 60) == pytest.approx(0)
 
 
 def test_central_routes_detected():

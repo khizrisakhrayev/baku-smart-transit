@@ -1,7 +1,7 @@
 """Synthetic background reports, so the demo looks alive without real passengers.
 
 Every SYNTHETIC_INTERVAL_SEC a few random buses get a report from a made-up passenger.
-A rush-hour wave (intensity 0 -> 1 -> 0 over RUSH_PERIOD_SEC) pushes central routes
+A rush-hour wave (intensity 0 -> 1 -> 0 over RUSH_PERIOD_MIN) pushes central routes
 (those through 28 May, Koroğlu or Gənclik) toward "high"; outer routes stay mostly "low".
 Turned off with SYNTHETIC_REPORTS=0 (and always in tests).
 """
@@ -24,8 +24,9 @@ def is_central(route: Route) -> bool:
 
 
 def rush_intensity(elapsed_sec: float) -> float:
-    """Smooth wave from 0 (quiet) up to 1 (peak rush) and back over RUSH_PERIOD_SEC."""
-    return (1 - math.cos(2 * math.pi * elapsed_sec / config.RUSH_PERIOD_SEC)) / 2
+    """Smooth wave from 0 (quiet) up to 1 (peak rush) and back over RUSH_PERIOD_MIN."""
+    period_sec = config.RUSH_PERIOD_MIN * 60
+    return (1 - math.cos(2 * math.pi * elapsed_sec / period_sec)) / 2
 
 
 def level_weights(central: bool, intensity: float) -> dict[str, float]:

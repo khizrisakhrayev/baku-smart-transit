@@ -348,6 +348,172 @@ function alertItems(alerts) {
     </li>`).join("");
 }
 
+// --- Analytics (Chart.js): charts are created once, then only their data is updated ---
+
+const ANALYTICS_MS = 10000;
+const LEVELS = ["low", "medium", "high"];
+const TEXT_COLOR = "#1c2333";
+const MUTED_COLOR = "#6b7489";
+const GRID_COLOR = "#e3e7ef";
+
+Chart.defaults.font.family = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+Chart.defaults.color = MUTED_COLOR;
+
+const charts = { timeline: null, topRoutes: null, topRouteNames: [] };
+
+function withAlpha(hex, alpha) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
+function shorten(text, max) {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+// Writes each bar's value just past its tip (bars carry their value at the tip).
+const barTipLabels = {
+  id: "barTipLabels",
+  afterDatasetsDraw(chart) {
+    const { ctx } = chart;
+    ctx.save();
+    ctx.fillStyle = TEXT_COLOR;
+    ctx.font = `12px ${Chart.defaults.font.family}`;
+    ctx.textBaseline = "middle";
+    chart.getDatasetMeta(0).data.forEach((bar, i) => {
+      ctx.fillText(`${chart.data.datasets[0].data[i]}%`, bar.x + 6, bar.y);
+    });
+    ctx.restore();
+  },
+};
+
+function createCharts() {
+  // Stacked area: low at the bottom, high on top; each band fills down to the one below.
+  charts.timeline = new Chart(document.getElementById("timeline-chart"), {
+    type: "line",
+    data: {
+      labels: [],
+      datasets: LEVELS.map((level, i) => ({
+        label: DENSITY_LABELS[level],
+        data: [],
+        borderColor: DENSITY_COLORS[level],
+        backgroundColor: withAlpha(DENSITY_COLORS[level], 0.15),
+        fill: i === 0 ? "origin" : "-1",
+        borderWidth: 2,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        tension: 0.3,
+      })),
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        x: { grid: { display: false }, ticks: { maxTicksLimit: 8, maxRotation: 0 } },
+        y: {
+          stacked: true,
+          beginAtZero: true,
+          grid: { color: GRID_COLOR },
+          border: { display: false },
+          ticks: { precision: 0 },
+          title: { display: true, text: "Bildiriş / dəq" },
+        },
+      },
+      plugins: {
+        legend: { position: "top", align: "start", labels: { color: TEXT_COLOR, boxWidth: 12, boxHeight: 12 } },
+      },
+    },
+  });
+
+  charts.topRoutes = new Chart(document.getElementById("top-routes-chart"), {
+    type: "bar",
+    data: {
+      labels: [],
+      datasets: [{
+        label: "Yüksək payı",
+        data: [],
+        backgroundColor: DENSITY_COLORS.high,
+        borderRadius: 4,
+        borderSkipped: "start", // rounded at the data end, square at the baseline
+        maxBarThickness: 24,
+      }],
+    },
+    options: {
+      indexAxis: "y",
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      layout: { padding: { right: 40 } }, // room for the tip labels
+      scales: {
+        x: { min: 0, max: 100, grid: { color: GRID_COLOR }, border: { display: false },
+             ticks: { callback: (v) => `${v}%` } },
+        y: { grid: { display: false }, ticks: { color: TEXT_COLOR } },
+      },
+      plugins: {
+        legend: { display: false }, // one series: the caption names it
+        tooltip: {
+          callbacks: {
+            title: (items) => charts.topRouteNames[items[0].dataIndex],
+            label: (item) => `Yüksək payı: ${item.parsed.x}%`,
+          },
+        },
+      },
+    },
+    plugins: [barTipLabels],
+  });
+}
+
+function minuteLabel(isoText) {
+  return new Date(isoText).toLocaleTimeString("az-AZ", { hour: "2-digit", minute: "2-digit" });
+}
+
+function updateTimelineChart(timeline) {
+  charts.timeline.data.labels = timeline.map((m) => minuteLabel(m.minute));
+  LEVELS.forEach((level, i) => {
+    charts.timeline.data.datasets[i].data = timeline.map((m) => m[level]);
+  });
+  charts.timeline.update("none");
+}
+
+function updateTopRoutesChart(topRoutes) {
+  charts.topRouteNames = topRoutes.map((r) => `Marşrut ${r.route_id} · ${r.route_name}`);
+  charts.topRoutes.data.labels = topRoutes.map((r) => `${r.route_id} · ${shorten(r.route_name, 22)}`);
+  charts.topRoutes.data.datasets[0].data = topRoutes.map((r) => Math.round(r.high_share * 100));
+  charts.topRoutes.update("none");
+  document.getElementById("top-routes-empty").hidden = topRoutes.length > 0;
+}
+
+function indexLevel(index) {
+  if (index < 34) return "low";
+  if (index < 67) return "medium";
+  return "high";
+}
+
+function renderDensityIndex(index) {
+  document.getElementById("stat-index").textContent = index ?? "–";
+  document.getElementById("stat-index-level").innerHTML = index === null ? "" : badge(indexLevel(index));
+}
+
+// Table view: the same numbers as the charts, readable without color or hover.
+function renderAnalyticsTables(data) {
+  document.getElementById("top-routes-table").innerHTML = data.top_routes.length
+    ? data.top_routes.map((r) => `
+        <tr><td><span class="route-tag">${r.route_id}</span> ${r.route_name}</td>
+            <td>${Math.round(r.high_share * 100)}%</td></tr>`).join("")
+    : '<tr><td colspan="2" class="hint">Məlumat yoxdur</td></tr>';
+  document.getElementById("timeline-table").innerHTML = [...data.timeline].reverse().map((m) => `
+    <tr><td>${minuteLabel(m.minute)}</td><td>${m.low}</td><td>${m.medium}</td><td>${m.high}</td></tr>`).join("");
+}
+
+async function refreshAnalytics() {
+  const data = await api("/api/operator/analytics");
+  updateTimelineChart(data.timeline);
+  updateTopRoutesChart(data.top_routes);
+  renderDensityIndex(data.density_index);
+  renderAnalyticsTables(data);
+}
+
 // --- Polling ---
 
 async function refresh() {
@@ -406,3 +572,7 @@ document.getElementById("density-body").addEventListener("click", async (event) 
 
 loadRoutes().then(refresh).catch(console.error);
 setInterval(() => refresh().catch(console.error), POLL_MS);
+
+createCharts();
+refreshAnalytics().catch(console.error);
+setInterval(() => refreshAnalytics().catch(console.error), ANALYTICS_MS);

@@ -9,7 +9,7 @@ Trend: slope above +TREND_THRESHOLD per minute is "rising", below -TREND_THRESHO
 "falling", otherwise "stable".
 Early warning: predicted "high" while the route is not "high" now.
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app import config, density
 from app.models import Report, Route, RouteForecast
@@ -64,7 +64,9 @@ def is_early_warning(predicted_level: str | None, current_level: str | None) -> 
 
 def forecast_route(store: Store, route: Route, now: datetime) -> RouteForecast:
     current_level = density.route_summary(store, route, now).dominant_level
-    points = bucket_points(store.reports_for_route(route.id), now)
+    history_sec = config.FORECAST_BUCKET_SEC * config.FORECAST_BUCKETS
+    recent = store.reports_for_route(route.id, since=now - timedelta(seconds=history_sec))
+    points = bucket_points(recent, now)
     if not points:
         return RouteForecast(route_id=route.id, current_level=current_level, predicted_level=None,
                              predicted_score=None, trend="stable", slope_per_min=0.0, early_warning=False)
