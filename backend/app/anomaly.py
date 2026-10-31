@@ -4,7 +4,8 @@ Rule: a route is anomalous when its most recent reports form an unbroken run of
 "high" reports (no low/medium in between) that has at least MIN_HIGH_REPORTS reports
 and spans at least ANOMALY_WINDOW_SEC from the first to the last of them.
 
-Then one alert is opened for the route; while it is active no duplicate is created.
+Then one alert is opened for the route (with a smart-dispatch recommendation, see
+dispatch.py); while it is active no duplicate is created.
 After the operator resolves it, the route alerts again only once a new "high"
 report arrives (so the background check doesn't immediately re-open it).
 """
@@ -12,6 +13,7 @@ import asyncio
 import os
 from datetime import datetime
 
+from app import dispatch
 from app.models import Alert, Report
 from app.store import Store, utcnow
 
@@ -50,7 +52,12 @@ def check_route(store: Store, route_id: str, now: datetime | None = None) -> Ale
     resolved_at = store.last_resolved_at(route_id)
     if resolved_at and reports[-1].timestamp <= resolved_at:
         return None  # already handled; wait for a new report
-    return store.create_alert(route_id, ALERT_MESSAGE, now or utcnow())
+    donor = dispatch.choose_donor(store, route_id)
+    return store.create_alert(
+        route_id, ALERT_MESSAGE, now or utcnow(),
+        donor_route_id=donor,
+        recommendation=dispatch.recommendation_text(donor, route_id) if donor else None,
+    )
 
 
 def check_all(store: Store, now: datetime | None = None) -> list[Alert]:

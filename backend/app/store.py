@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS alerts (
 );
 """
 
+# Columns added after the first release; added to older data.db files on open.
+ALERT_EXTRA_COLUMNS = ("donor_route_id", "recommendation", "dispatched_bus_id")
+
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -44,8 +47,16 @@ class Store:
         self.db = sqlite3.connect(db_path, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
+        self._add_missing_alert_columns()
         self.routes: dict[str, Route] = {}
         self.buses: dict[str, Bus] = {}
+
+    def _add_missing_alert_columns(self) -> None:
+        existing = {row["name"] for row in self.db.execute("PRAGMA table_info(alerts)")}
+        with self.db:
+            for column in ALERT_EXTRA_COLUMNS:
+                if column not in existing:
+                    self.db.execute(f"ALTER TABLE alerts ADD COLUMN {column} TEXT")
 
     def reset(self) -> None:
         """Start from an empty in-memory database (used by tests)."""
@@ -90,11 +101,13 @@ class Store:
 
     # --- Operator alerts (SQLite) ---
 
-    def create_alert(self, route_id: str, message: str, created_at: datetime | None = None) -> Alert:
+    def create_alert(self, route_id: str, message: str, created_at: datetime | None = None,
+                     donor_route_id: str | None = None, recommendation: str | None = None) -> Alert:
         with self.db:
             cursor = self.db.execute(
-                "INSERT INTO alerts (route_id, message, created_at) VALUES (?, ?, ?)",
-                (route_id, message, _to_text(created_at or utcnow())),
+                "INSERT INTO alerts (route_id, message, created_at, donor_route_id, recommendation) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (route_id, message, _to_text(created_at or utcnow()), donor_route_id, recommendation),
             )
         return self.get_alert(cursor.lastrowid)
 
@@ -121,12 +134,15 @@ class Store:
         )
         return [Alert(**dict(row)) for row in rows]
 
-    def resolve_alert(self, alert_id: int, resolved_at: datetime | None = None) -> Alert | None:
-        """Mark an alert resolved (no-op if already resolved); None if it doesn't exist."""
+    def resolve_alert(self, alert_id: int, resolved_at: datetime | None = None,
+                      dispatched_bus_id: str | None = None) -> Alert | None:
+        """Mark an alert resolved (no-op if already resolved); None if it doesn't exist.
+        `dispatched_bus_id` records the bus sent to the route, if any."""
         with self.db:
             self.db.execute(
-                "UPDATE alerts SET resolved_at = ? WHERE id = ? AND resolved_at IS NULL",
-                (_to_text(resolved_at or utcnow()), alert_id),
+                "UPDATE alerts SET resolved_at = ?, dispatched_bus_id = ? "
+                "WHERE id = ? AND resolved_at IS NULL",
+                (_to_text(resolved_at or utcnow()), dispatched_bus_id, alert_id),
             )
         return self.get_alert(alert_id)
 

@@ -11,7 +11,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
-from app import anomaly, density, eta, simulator
+from app import anomaly, density, dispatch, eta, simulator
 from app.models import Alert, Bus, BusEta, Report, ReportIn, Route, RouteDensity, Stop
 from app.routes_data import ROUTES
 from app.store import store, utcnow
@@ -105,6 +105,19 @@ def resolve_alert(alert_id: int) -> Alert:
     if alert is None:
         raise HTTPException(404, "Xəbərdarlıq tapılmadı")
     return alert
+
+
+@app.post("/api/operator/alerts/{alert_id}/dispatch")
+def dispatch_alert(alert_id: int) -> dict:
+    """Confirm the alert's recommendation: move one bus from the donor route and resolve."""
+    alert = store.get_alert(alert_id)
+    if alert is None:
+        raise HTTPException(404, "Xəbərdarlıq tapılmadı")
+    try:
+        resolved, bus = dispatch.dispatch_bus(store, alert)
+    except dispatch.DispatchError as error:
+        raise HTTPException(409, str(error))
+    return {"alert": resolved, "bus": bus}
 
 
 # --- Demo helper ---

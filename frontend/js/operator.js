@@ -270,6 +270,22 @@ function renderDensityTable() {
     </tr>`).join("");
 }
 
+// Smart-dispatch recommendation (active alert) or what was dispatched (resolved alert).
+function dispatchLine(alert) {
+  if (alert.dispatched_bus_id) {
+    return `<div class="dispatch done">🚌 Avtobus ${alert.dispatched_bus_id} Marşrut ${alert.route_id}-ə yönləndirildi</div>`;
+  }
+  if (alert.resolved_at) return "";
+  if (!alert.recommendation) {
+    return '<div class="dispatch">Boş avtobusu olan donor marşrut tapılmadı</div>';
+  }
+  return `
+    <div class="dispatch">
+      <span>💡 ${alert.recommendation}</span>
+      <button class="btn-small btn-dispatch" data-dispatch-id="${alert.id}">Təsdiqlə</button>
+    </div>`;
+}
+
 function renderAlerts(alerts) {
   const list = document.getElementById("alert-list");
   if (!alerts.length) {
@@ -283,6 +299,7 @@ function renderAlerts(alerts) {
         ${a.resolved_at ? "" : `<button class="btn-small btn-resolve" data-resolve-id="${a.id}">Həll edildi</button>`}
       </div>
       <div>${a.message}</div>
+      ${dispatchLine(a)}
       <div class="hint">
         Yaradıldı: ${formatTime(a.created_at)}
         ${a.resolved_at ? ` · Həll edildi: ${formatTime(a.resolved_at)}` : ""}
@@ -319,10 +336,20 @@ document.getElementById("route-list").addEventListener("click", (event) => {
 });
 
 document.getElementById("alert-list").addEventListener("click", async (event) => {
-  const id = event.target.dataset.resolveId;
-  if (!id) return;
-  await api(`/api/operator/alerts/${id}/resolve`, { method: "POST" });
-  showToast("Xəbərdarlıq həll edildi");
+  const { resolveId, dispatchId } = event.target.dataset;
+  if (resolveId) {
+    await api(`/api/operator/alerts/${resolveId}/resolve`, { method: "POST" });
+    showToast("Xəbərdarlıq həll edildi");
+  } else if (dispatchId) {
+    try {
+      const result = await api(`/api/operator/alerts/${dispatchId}/dispatch`, { method: "POST" });
+      showToast(`Avtobus ${result.bus.id} Marşrut ${result.bus.route_id}-ə yönləndirildi`);
+    } catch (error) {
+      showToast("Yönləndirmə mümkün olmadı, marşrut vəziyyəti dəyişib");
+    }
+  } else {
+    return;
+  }
   refresh();
 });
 

@@ -382,3 +382,22 @@ h2 { font-size: 1rem; margin: 0 0 0.5rem; }
 
 .alert-icon { color: var(--high); font-weight: 700; }
 .density-table tr.row-alert { background: #fdecec; }
+
+/* --- Smart dispatch recommendation inside an alert --- */
+
+.dispatch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0.4rem 0;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 0.85rem;
+}
+
+.dispatch.done { color: var(--low); font-weight: 600; }
+
+.btn-dispatch { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn-dispatch:hover { background: #1d4ed8; }

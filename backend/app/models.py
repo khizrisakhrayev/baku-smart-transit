@@ -48,12 +48,19 @@ class Report(ReportIn):
 
 
 class Alert(BaseModel):
-    """Operator alert; active while `resolved_at` is None."""
+    """Operator alert; active while `resolved_at` is None.
+
+    `donor_route_id` / `recommendation`: suggested route to take a bus from (smart dispatch).
+    `dispatched_bus_id`: the bus actually moved when the operator confirmed it.
+    """
     id: int
     route_id: str
     message: str
     created_at: datetime
     resolved_at: datetime | None = None
+    donor_route_id: str | None = None
+    recommendation: str | None = None
+    dispatched_bus_id: str | None = None
 
 
 class RouteDensity(BaseModel):
