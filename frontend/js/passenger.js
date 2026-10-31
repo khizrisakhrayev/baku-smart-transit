@@ -25,10 +25,38 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
 
 // --- Helpers ---
 
+// Throws on HTTP errors; error.detail holds the server's message (e.g. rate limit) if any.
 async function api(path, options) {
   const response = await fetch(path, options);
-  if (!response.ok) throw new Error(`${response.status} ${path}`);
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    const error = new Error(`${response.status} ${path}`);
+    error.detail = typeof body.detail === "string" ? body.detail : null;
+    throw error;
+  }
   return response.json();
+}
+
+// Anonymous id kept in this browser, so the server can rate-limit and count unique reporters.
+function getClientId() {
+  let id = localStorage.getItem("clientId");
+  if (!id) {
+    id = crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now();
+    localStorage.setItem("clientId", id);
+  }
+  return id;
+}
+
+// Current position if the passenger allows it, otherwise null (the report is sent without it).
+function getPosition() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      () => resolve(null),
+      { timeout: 5000, maximumAge: 60000 }
+    );
+  });
 }
 
 function densityClass(level) {
@@ -211,11 +239,14 @@ function renderBusPanel(bus) {
 
 async function sendReport(level) {
   const bus = state.bus;
+  const buttons = document.querySelectorAll(".report-buttons button");
+  buttons.forEach((b) => (b.disabled = true)); // geolocation can take a few seconds
   try {
+    const position = await getPosition();
     await api("/api/reports", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ route_id: bus.route_id, bus_id: bus.id, level }),
+      body: JSON.stringify({ route_id: bus.route_id, bus_id: bus.id, level, client_id: getClientId(), ...position }),
     });
     showToast("Təşəkkürlər, bildirişiniz qəbul edildi");
     hide("bus-panel");
@@ -223,7 +254,9 @@ async function sendReport(level) {
     refreshBuses();
     refreshEta();
   } catch (error) {
-    showToast("Xəta baş verdi, yenidən cəhd edin");
+    showToast(error.detail || "Xəta baş verdi, yenidən cəhd edin");
+  } finally {
+    buttons.forEach((b) => (b.disabled = false));
   }
 }
 

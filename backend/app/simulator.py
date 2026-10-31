@@ -2,16 +2,13 @@
 
 Each route is driven as a round trip: A→B→C→D→C→B→(A again). A bus sits between two
 consecutive stops of that path and advances 1/STEPS_PER_SEGMENT of the way each tick,
-so with a 2s tick it reaches the next stop every STEPS_PER_SEGMENT * 2 seconds.
+so it reaches the next stop every STEPS_PER_SEGMENT * TICK_SECONDS seconds (see config.py).
 """
 import asyncio
 
+from app import config
 from app.models import Bus, Route, Stop
 from app.store import Store
-
-TICK_SECONDS = 2.0
-STEPS_PER_SEGMENT = 5
-BUSES_PER_ROUTE = 3
 
 
 def route_path(route: Route) -> list[Stop]:
@@ -29,7 +26,7 @@ def next_stop(bus: Bus, route: Route) -> Stop:
     return path[(bus.path_index + 1) % len(path)]
 
 
-def create_buses(route: Route, count: int = BUSES_PER_ROUTE) -> list[Bus]:
+def create_buses(route: Route, count: int = config.BUSES_PER_ROUTE) -> list[Bus]:
     """Create `count` buses spread evenly around the route's round trip."""
     path = route_path(route)
     buses = []
@@ -44,7 +41,7 @@ def create_buses(route: Route, count: int = BUSES_PER_ROUTE) -> list[Bus]:
 def step_bus(bus: Bus, route: Route) -> None:
     """Advance one tick and update the bus's coordinates."""
     path = route_path(route)
-    bus.progress += 1 / STEPS_PER_SEGMENT
+    bus.progress += 1 / config.STEPS_PER_SEGMENT
     if bus.progress >= 1 - 1e-9:  # arrived at next stop
         bus.path_index = (bus.path_index + 1) % len(path)
         bus.progress = 0.0
@@ -67,7 +64,7 @@ def seed(store: Store, routes: list[Route]) -> None:
             store.add_bus(bus)
 
 
-async def run(store: Store, interval: float = TICK_SECONDS) -> None:
+async def run(store: Store, interval: float = config.TICK_SECONDS) -> None:
     """Background loop: tick forever until cancelled."""
     while True:
         await asyncio.sleep(interval)

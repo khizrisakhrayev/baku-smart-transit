@@ -79,3 +79,18 @@ Aim for 80-120 unique stops total, 8-12 stops per route, covering central Baku a
 - **Prompt:** "Smart dispatch: when an anomaly alert is created, find a donor route with the most \"low\"/unknown density and at least 3 buses, and attach a recommendation to the alert: \"Marşrut X-dən 1 avtobusu Marşrut Y-ə yönləndirin\". Add POST /api/operator/alerts/{id}/dispatch that actually moves one bus in the simulator from donor to the target route and resolves the alert. Show the recommendation and a \"Təsdiqlə\" button in the operator alerts panel. Unit-test donor selection and the dispatch endpoint. Commit."
 - **Summary:** Added dispatch.py (donor choice among calm, non-alerted routes with ≥3 buses; moving a bus to the alerted route), recommendation stored on new alerts (with a small SQLite column migration), POST /api/operator/alerts/{id}/dispatch, and a recommendation line with "Təsdiqlə" in the operator alerts panel; with donor-selection and dispatch tests.
 - **Files changed:** backend/app/dispatch.py, backend/app/anomaly.py, backend/app/store.py, backend/app/models.py, backend/app/main.py, frontend/js/operator.js, frontend/css/style.css, tests/test_dispatch.py, AI_DECLARATION.md
+
+## 2026-10-31 13:20
+- **Tool:** Claude Code
+- **Prompt:** "Two small fixes first:
+- Move ANOMALY_WINDOW_SEC and other tunables into backend/app/config.py to break the anomaly -> dispatch -> density import loop.
+- Avoid wrong Azerbaijani suffixes: change the recommendation text to \"Tövsiyə: Marşrut X → Marşrut Y (1 avtobus yönləndirin)\" and the dispatched text to \"Avtobus 30-3 → Marşrut H1\".
+Then report trust (keep it simple, put logic in trust.py):
+- Passenger page generates an anonymous client_id (localStorage) and sends it with reports.
+- Rate limit: max 1 report per client per bus per 60s -> 429 with Azerbaijani message, shown as a toast.
+- Optional lat/lon in the report: if given and more than 500 m from the bus, reject with 422 (\"Avtobusdan çox uzaqdasınız\"). Passenger page sends browser geolocation if allowed, otherwise skips.
+- Time decay: in density, weight each report by freshness (linear from 1.0 now to 0 at window end) and expose a confidence score 0-1 per route based on number of unique clients and freshness. Show confidence as a small bar in the operator table.
+- Demo flood uses distinct client_ids so it still works.
+Unit-test the rate limit, distance check and weighting. Commit."
+- **Summary:** Added config.py with all tunables (breaking the import loop) and suffix-free dispatch texts. Added trust.py (rate limit, haversine distance check, freshness weight, confidence), client_id/lat/lon on reports with a SQLite column migration, weighted dominant level + confidence in density, passenger client id/geolocation/error toasts, and an operator confidence bar; with trust unit and API tests.
+- **Files changed:** backend/app/config.py, backend/app/trust.py, backend/app/density.py, backend/app/models.py, backend/app/store.py, backend/app/main.py, backend/app/anomaly.py, backend/app/dispatch.py, backend/app/simulator.py, backend/app/eta.py, frontend/js/passenger.js, frontend/js/operator.js, frontend/operator.html, frontend/css/style.css, tests/test_trust.py, tests/test_anomaly.py, tests/test_api.py, tests/test_dispatch.py, tests/test_eta.py, tests/test_health.py, tests/test_operator_api.py, tests/test_simulator.py, AI_DECLARATION.md

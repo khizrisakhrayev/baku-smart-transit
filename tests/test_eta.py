@@ -1,6 +1,6 @@
 import pytest
 
-from app import eta
+from app import config, eta
 from app.models import Bus, Route, Stop
 from app.store import Store
 
@@ -44,7 +44,7 @@ def test_stop_not_on_route(route):
 
 
 def test_eta_minutes_uses_simulator_speed(route):
-    expected = 2 * eta.SEGMENT_SECONDS * eta.SIM_TIME_SCALE / 60
+    expected = 2 * eta.SEGMENT_SECONDS * config.SIM_TIME_SCALE / 60
     assert eta.eta_minutes(bus_at(0), route, "c") == round(expected, 1)
 
 

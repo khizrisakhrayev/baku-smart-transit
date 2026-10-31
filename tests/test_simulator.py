@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from app import simulator
+from app import config, simulator
 from app.models import Route, Stop
 from app.routes_data import ROUTES
 from app.store import Store
@@ -44,7 +44,7 @@ def test_bus_moves_between_stops(route):
 
 def test_bus_reaches_next_stop(route):
     bus = simulator.create_buses(route, count=1)[0]
-    step_n(bus, route, simulator.STEPS_PER_SEGMENT)
+    step_n(bus, route, config.STEPS_PER_SEGMENT)
     assert bus.path_index == 1
     assert bus.progress == 0.0
     assert (bus.lat, bus.lon) == pytest.approx((40.1, 49.1))
@@ -52,13 +52,13 @@ def test_bus_reaches_next_stop(route):
 
 def test_bus_turns_back_at_terminus(route):
     bus = simulator.create_buses(route, count=1)[0]
-    step_n(bus, route, 2 * simulator.STEPS_PER_SEGMENT)  # now at C
+    step_n(bus, route, 2 * config.STEPS_PER_SEGMENT)  # now at C
     assert simulator.next_stop(bus, route).name == "B"
 
 
 def test_bus_completes_full_loop(route):
     bus = simulator.create_buses(route, count=1)[0]
-    step_n(bus, route, 4 * simulator.STEPS_PER_SEGMENT)
+    step_n(bus, route, 4 * config.STEPS_PER_SEGMENT)
     assert bus.path_index == 0
     assert (bus.lat, bus.lon) == pytest.approx((40.0, 49.0))
 
@@ -67,7 +67,7 @@ def test_seed_and_tick_move_all_buses():
     store = Store()
     simulator.seed(store, ROUTES)
     assert len(store.routes) == len(ROUTES)
-    assert len(store.buses) == len(ROUTES) * simulator.BUSES_PER_ROUTE
+    assert len(store.buses) == len(ROUTES) * config.BUSES_PER_ROUTE
     before = {b.id: (b.lat, b.lon) for b in store.buses.values()}
     simulator.tick(store)
     assert all((b.lat, b.lon) != before[b.id] for b in store.buses.values())

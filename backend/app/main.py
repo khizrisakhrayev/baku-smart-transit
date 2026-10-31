@@ -3,7 +3,7 @@
 Run from the backend/ folder:  uvicorn app.main:app --reload
 """
 import asyncio
-import os
+import uuid
 from contextlib import asynccontextmanager
 from datetime import timedelta
 from pathlib import Path
@@ -11,19 +11,18 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
-from app import anomaly, density, dispatch, eta, simulator
+from app import anomaly, config, density, dispatch, eta, simulator, trust
 from app.models import Alert, Bus, BusEta, Report, ReportIn, Route, RouteDensity, Stop
 from app.routes_data import ROUTES
 from app.store import store, utcnow
 
 FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
-DB_PATH = os.getenv("DB_PATH", str(Path(__file__).resolve().parents[1] / "data.db"))
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Open the database, seed routes/buses, and run the background loops."""
-    store.open(DB_PATH)
+    store.open(config.DB_PATH)
     simulator.seed(store, ROUTES)
     tasks = [
         asyncio.create_task(simulator.run(store)),
@@ -79,9 +78,14 @@ def stop_eta(stop_id: str) -> list[BusEta]:
 
 @app.post("/api/reports", status_code=201)
 def create_report(report_in: ReportIn) -> Report:
+    """Validate (bus on route, distance, rate limit), save, then check for anomalies."""
     bus = store.buses.get(report_in.bus_id)
     if bus is None or bus.route_id != report_in.route_id:
         raise HTTPException(422, "Avtobus bu marşruta aid deyil")
+    if trust.is_too_far(report_in, bus):
+        raise HTTPException(422, "Avtobusdan çox uzaqdasınız")
+    if trust.is_rate_limited(store, report_in.client_id, report_in.bus_id, utcnow()):
+        raise HTTPException(429, "Bu avtobus üçün artıq bildiriş göndərmisiniz. Bir dəqiqə sonra yenidən cəhd edin")
     report = store.add_report(report_in)
     anomaly.check_route(store, report.route_id)
     return report
@@ -126,15 +130,17 @@ def dispatch_alert(alert_id: int) -> dict:
 def demo_flood_high(route_id: str) -> dict:
     """Add backdated "high" reports so the alert fires right away instead of after
     waiting the full window: one at the window start (so the high run spans the whole
-    window) plus MIN_HIGH_REPORTS spread inside it (so the density overview counts them)."""
+    window) plus MIN_HIGH_REPORTS spread inside it (so the density overview counts them).
+    Each report gets its own client id, as if sent by different passengers."""
     get_route_or_404(route_id)
     buses = store.buses_on_route(route_id)
-    window = anomaly.ANOMALY_WINDOW_SEC
-    count = anomaly.MIN_HIGH_REPORTS
+    window = config.ANOMALY_WINDOW_SEC
+    count = config.MIN_HIGH_REPORTS
     ages = [window * k / count for k in range(count, -1, -1)]  # e.g. 600, 400, 200, 0 s
     now = utcnow()
     for i, age in enumerate(ages):
-        report_in = ReportIn(route_id=route_id, bus_id=buses[i % len(buses)].id, level="high")
+        report_in = ReportIn(route_id=route_id, bus_id=buses[i % len(buses)].id, level="high",
+                             client_id=f"demo-{uuid.uuid4().hex[:8]}")
         store.add_report(report_in, timestamp=now - timedelta(seconds=age))
     alert = anomaly.check_route(store, route_id, now)
     return {"reports_added": len(ages), "alert": alert}

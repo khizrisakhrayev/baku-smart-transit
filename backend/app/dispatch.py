@@ -1,14 +1,14 @@
 """Smart dispatch: move a bus from a quiet route to an overcrowded one.
 
 Donor choice: among other routes that are calm (dominant level "low" or no reports in
-the window), have no active alert and at least MIN_DONOR_BUSES buses, pick the one with
-the most "low" reports, then the fewest medium/high reports, then the most buses.
+the window), have no active alert and at least MIN_DONOR_BUSES buses (see config.py),
+pick the one with the most "low" reports, then the fewest medium/high reports, then the
+most buses.
 """
-from app import density
+from app import config, density
 from app.models import Alert, Bus, RouteDensity
 from app.store import Store
 
-MIN_DONOR_BUSES = 3
 CALM_LEVELS = ("low", None)
 
 
@@ -17,7 +17,8 @@ class DispatchError(Exception):
 
 
 def recommendation_text(donor_route_id: str, target_route_id: str) -> str:
-    return f"Marşrut {donor_route_id}-dən 1 avtobusu Marşrut {target_route_id}-ə yönləndirin"
+    # Arrow format avoids Azerbaijani case suffixes, which depend on how the number is read.
+    return f"Tövsiyə: Marşrut {donor_route_id} → Marşrut {target_route_id} (1 avtobus yönləndirin)"
 
 
 def donor_candidates(store: Store, target_route_id: str) -> list[RouteDensity]:
@@ -26,7 +27,7 @@ def donor_candidates(store: Store, target_route_id: str) -> list[RouteDensity]:
         d for d in density.summary(store)
         if d.route_id != target_route_id
         and d.route_id not in alerted
-        and d.bus_count >= MIN_DONOR_BUSES
+        and d.bus_count >= config.MIN_DONOR_BUSES
         and d.dominant_level in CALM_LEVELS
     ]
 
@@ -51,8 +52,8 @@ def dispatch_bus(store: Store, alert: Alert) -> tuple[Alert, Bus]:
     if alert.donor_route_id is None:
         raise DispatchError("Bu xəbərdarlıq üçün donor marşrut yoxdur")
     donor_buses = store.buses_on_route(alert.donor_route_id)
-    if len(donor_buses) < MIN_DONOR_BUSES:
-        raise DispatchError(f"Marşrut {alert.donor_route_id}-də kifayət qədər avtobus yoxdur")
+    if len(donor_buses) < config.MIN_DONOR_BUSES:
+        raise DispatchError(f"Donor marşrutda ({alert.donor_route_id}) kifayət qədər avtobus yoxdur")
 
     bus = donor_buses[-1]
     first_stop = store.routes[alert.route_id].stops[0]

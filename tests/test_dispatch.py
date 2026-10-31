@@ -4,7 +4,7 @@ from datetime import timedelta
 import pytest
 from fastapi.testclient import TestClient
 
-from app import anomaly, dispatch, simulator
+from app import anomaly, config, dispatch, simulator
 from app.main import app
 from app.models import ReportIn
 from app.routes_data import ROUTES
@@ -15,7 +15,7 @@ client = TestClient(app)  # no lifespan: background loops not running
 
 @pytest.fixture(autouse=True)
 def fresh_store(monkeypatch):
-    monkeypatch.setattr(anomaly, "ANOMALY_WINDOW_SEC", 600)
+    monkeypatch.setattr(config, "ANOMALY_WINDOW_SEC", 600)
     store.reset()
     simulator.seed(store, ROUTES)
 
@@ -23,7 +23,7 @@ def fresh_store(monkeypatch):
 def add_reports(route_id: str, *levels: str) -> None:
     bus_id = store.buses_on_route(route_id)[0].id
     for level in levels:
-        store.add_report(ReportIn(route_id=route_id, bus_id=bus_id, level=level))
+        store.add_report(ReportIn(client_id="test", route_id=route_id, bus_id=bus_id, level=level))
 
 
 def make_only_eligible(*route_ids: str) -> None:
@@ -83,14 +83,14 @@ def test_no_donor_when_every_route_is_busy():
 
 
 def test_recommendation_text():
-    assert dispatch.recommendation_text("8", "5") == "Marşrut 8-dən 1 avtobusu Marşrut 5-ə yönləndirin"
+    assert dispatch.recommendation_text("8", "5") == "Tövsiyə: Marşrut 8 → Marşrut 5 (1 avtobus yönləndirin)"
 
 
 def test_new_alert_carries_recommendation():
     add_reports("8", "low", "low")
     now = utcnow()
     for age in (600, 300, 0):
-        store.add_report(ReportIn(route_id="5", bus_id="5-1", level="high"), timestamp=now - timedelta(seconds=age))
+        store.add_report(ReportIn(client_id="test", route_id="5", bus_id="5-1", level="high"), timestamp=now - timedelta(seconds=age))
     alert = anomaly.check_route(store, "5", now)
     assert alert.donor_route_id == "8"
     assert alert.recommendation == dispatch.recommendation_text("8", "5")
@@ -118,14 +118,14 @@ def test_dispatch_moves_bus_and_resolves_alert():
     assert body["alert"]["resolved_at"] is not None
     assert body["alert"]["dispatched_bus_id"] == bus["id"]
 
-    assert len(store.buses_on_route("5")) == simulator.BUSES_PER_ROUTE + 1
-    assert len(store.buses_on_route("8")) == simulator.BUSES_PER_ROUTE - 1
+    assert len(store.buses_on_route("5")) == config.BUSES_PER_ROUTE + 1
+    assert len(store.buses_on_route("8")) == config.BUSES_PER_ROUTE - 1
 
 
 def test_dispatched_bus_keeps_moving_on_new_route():
     alert = flood("5")
     bus_id = client.post(f"/api/operator/alerts/{alert['id']}/dispatch").json()["bus"]["id"]
-    for _ in range(simulator.STEPS_PER_SEGMENT):
+    for _ in range(config.STEPS_PER_SEGMENT):
         simulator.tick(store)
     assert store.buses[bus_id].path_index == 1  # reached the 2nd stop of route 5
 
@@ -157,7 +157,7 @@ def test_alert_list_shows_recommendation():
     add_reports("8", "low")
     flood("5")
     alert = client.get("/api/operator/alerts").json()[0]
-    assert alert["recommendation"] == "Marşrut 8-dən 1 avtobusu Marşrut 5-ə yönləndirin"
+    assert alert["recommendation"] == "Tövsiyə: Marşrut 8 → Marşrut 5 (1 avtobus yönləndirin)"
 
 
 def test_old_database_gets_new_alert_columns(tmp_path):

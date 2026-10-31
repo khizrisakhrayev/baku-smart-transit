@@ -252,6 +252,16 @@ function renderRouteList() {
     </li>`).join("");
 }
 
+// Small bar + percentage for the route's confidence score (0-1).
+function confidenceBar(value) {
+  const percent = Math.round(value * 100);
+  return `
+    <div class="confidence" title="Unikal bildirişçilər və təzəlik əsasında">
+      <div class="confidence-track"><div class="confidence-fill" style="width: ${percent}%"></div></div>
+      <span>${percent}%</span>
+    </div>`;
+}
+
 function renderDensityTable() {
   const rows = [...state.densities].sort(bySeverity);
   document.getElementById("density-body").innerHTML = rows.map((d) => `
@@ -265,6 +275,7 @@ function renderDensityTable() {
       <td>${d.counts.medium}</td>
       <td>${d.counts.high}</td>
       <td>${badge(d.dominant_level)}</td>
+      <td>${confidenceBar(d.confidence)}</td>
       <td>${formatTime(d.last_report_at)}</td>
       <td><button class="btn-small" data-demo-route="${d.route_id}">Demo</button></td>
     </tr>`).join("");
@@ -273,7 +284,7 @@ function renderDensityTable() {
 // Smart-dispatch recommendation (active alert) or what was dispatched (resolved alert).
 function dispatchLine(alert) {
   if (alert.dispatched_bus_id) {
-    return `<div class="dispatch done">🚌 Avtobus ${alert.dispatched_bus_id} Marşrut ${alert.route_id}-ə yönləndirildi</div>`;
+    return `<div class="dispatch done">🚌 Avtobus ${alert.dispatched_bus_id} → Marşrut ${alert.route_id}</div>`;
   }
   if (alert.resolved_at) return "";
   if (!alert.recommendation) {
@@ -343,7 +354,7 @@ document.getElementById("alert-list").addEventListener("click", async (event) =>
   } else if (dispatchId) {
     try {
       const result = await api(`/api/operator/alerts/${dispatchId}/dispatch`, { method: "POST" });
-      showToast(`Avtobus ${result.bus.id} Marşrut ${result.bus.route_id}-ə yönləndirildi`);
+      showToast(`Avtobus ${result.bus.id} → Marşrut ${result.bus.route_id}`);
     } catch (error) {
       showToast("Yönləndirmə mümkün olmadı, marşrut vəziyyəti dəyişib");
     }

@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 DensityLevel = Literal["low", "medium", "high"]
 
@@ -37,10 +37,23 @@ class Bus(BaseModel):
 
 
 class ReportIn(BaseModel):
-    """Passenger density report, as submitted."""
+    """Passenger density report, as submitted.
+
+    `client_id` is an anonymous id the passenger page keeps in localStorage (rate limiting,
+    confidence). `lat`/`lon` are the passenger's optional location (distance check).
+    """
     route_id: str
     bus_id: str
     level: DensityLevel
+    client_id: str = Field(min_length=1, max_length=64)
+    lat: float | None = Field(default=None, ge=-90, le=90)
+    lon: float | None = Field(default=None, ge=-180, le=180)
+
+    @model_validator(mode="after")
+    def lat_and_lon_together(self):
+        if (self.lat is None) != (self.lon is None):
+            raise ValueError("lat and lon must be given together")
+        return self
 
 
 class Report(ReportIn):
@@ -68,7 +81,9 @@ class RouteDensity(BaseModel):
     route_id: str
     route_name: str
     dominant_level: DensityLevel | None
-    counts: dict[str, int]
+    counts: dict[str, int]            # raw report counts in the window
+    weighted_counts: dict[str, float]  # counts weighted by freshness (see trust.py)
+    confidence: float                 # 0-1, from unique reporters and freshness
     bus_count: int
     last_report_at: datetime | None
 

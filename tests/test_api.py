@@ -1,7 +1,9 @@
+import uuid
+
 import pytest
 from fastapi.testclient import TestClient
 
-from app import simulator
+from app import config, simulator
 from app.main import app
 from app.routes_data import ROUTES
 from app.store import store
@@ -16,7 +18,9 @@ def fresh_store():
 
 
 def report(route_id="5", bus_id="5-1", level="high"):
-    return client.post("/api/reports", json={"route_id": route_id, "bus_id": bus_id, "level": level})
+    return client.post("/api/reports", json={
+        "route_id": route_id, "bus_id": bus_id, "level": level, "client_id": uuid.uuid4().hex,
+    })
 
 
 def test_stops_of_route():
@@ -40,7 +44,7 @@ def test_eta_for_shared_stop_includes_all_its_routes():
     expected_routes = {r.id for r in ROUTES if any(s.id == "28-may" for s in r.stops)}
     assert len(expected_routes) > 2
     assert {e["route_id"] for e in etas} == expected_routes
-    assert len(etas) == len(expected_routes) * simulator.BUSES_PER_ROUTE
+    assert len(etas) == len(expected_routes) * config.BUSES_PER_ROUTE
     minutes = [e["eta_minutes"] for e in etas]
     assert minutes == sorted(minutes)
 
@@ -51,9 +55,9 @@ def test_eta_unknown_stop():
 
 def test_buses_filtered_by_route():
     buses = client.get("/api/buses", params={"route_id": "65"}).json()
-    assert len(buses) == simulator.BUSES_PER_ROUTE
+    assert len(buses) == config.BUSES_PER_ROUTE
     assert {b["route_id"] for b in buses} == {"65"}
-    assert len(client.get("/api/buses").json()) == len(ROUTES) * simulator.BUSES_PER_ROUTE
+    assert len(client.get("/api/buses").json()) == len(ROUTES) * config.BUSES_PER_ROUTE
 
 
 def test_create_report():
@@ -75,10 +79,12 @@ def test_report_updates_bus_density_and_eta():
 
 
 @pytest.mark.parametrize("payload", [
-    {"route_id": "5", "bus_id": "5-1", "level": "extreme"},  # bad level
-    {"route_id": "5", "bus_id": "5-1"},                        # missing level
-    {"route_id": "5", "bus_id": "99-1", "level": "low"},       # unknown bus
-    {"route_id": "1", "bus_id": "5-1", "level": "low"},        # bus not on route
+    {"route_id": "5", "bus_id": "5-1", "level": "extreme", "client_id": "c"},  # bad level
+    {"route_id": "5", "bus_id": "5-1", "client_id": "c"},                        # missing level
+    {"route_id": "5", "bus_id": "99-1", "level": "low", "client_id": "c"},       # unknown bus
+    {"route_id": "1", "bus_id": "5-1", "level": "low", "client_id": "c"},        # bus not on route
+    {"route_id": "5", "bus_id": "5-1", "level": "low"},                          # missing client_id
+    {"route_id": "5", "bus_id": "5-1", "level": "low", "client_id": ""},         # empty client_id
 ])
 def test_invalid_report_rejected(payload):
     assert client.post("/api/reports", json=payload).status_code == 422

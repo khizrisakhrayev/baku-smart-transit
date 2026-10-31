@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS reports (
     route_id  TEXT NOT NULL,
     bus_id    TEXT NOT NULL,
     level     TEXT NOT NULL,
-    timestamp TEXT NOT NULL
+    timestamp TEXT NOT NULL,
+    client_id TEXT NOT NULL DEFAULT 'unknown'
 );
 CREATE TABLE IF NOT EXISTS alerts (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -27,7 +28,10 @@ CREATE TABLE IF NOT EXISTS alerts (
 """
 
 # Columns added after the first release; added to older data.db files on open.
-ALERT_EXTRA_COLUMNS = ("donor_route_id", "recommendation", "dispatched_bus_id")
+EXTRA_COLUMNS = {
+    "alerts": {"donor_route_id": "TEXT", "recommendation": "TEXT", "dispatched_bus_id": "TEXT"},
+    "reports": {"client_id": "TEXT NOT NULL DEFAULT 'unknown'"},
+}
 
 
 def utcnow() -> datetime:
@@ -47,16 +51,17 @@ class Store:
         self.db = sqlite3.connect(db_path, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
-        self._add_missing_alert_columns()
+        self._add_missing_columns()
         self.routes: dict[str, Route] = {}
         self.buses: dict[str, Bus] = {}
 
-    def _add_missing_alert_columns(self) -> None:
-        existing = {row["name"] for row in self.db.execute("PRAGMA table_info(alerts)")}
+    def _add_missing_columns(self) -> None:
         with self.db:
-            for column in ALERT_EXTRA_COLUMNS:
-                if column not in existing:
-                    self.db.execute(f"ALTER TABLE alerts ADD COLUMN {column} TEXT")
+            for table, columns in EXTRA_COLUMNS.items():
+                existing = {row["name"] for row in self.db.execute(f"PRAGMA table_info({table})")}
+                for column, definition in columns.items():
+                    if column not in existing:
+                        self.db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
     def reset(self) -> None:
         """Start from an empty in-memory database (used by tests)."""
@@ -83,8 +88,8 @@ class Store:
         report = Report(**report_in.model_dump(), timestamp=timestamp or utcnow())
         with self.db:
             self.db.execute(
-                "INSERT INTO reports (route_id, bus_id, level, timestamp) VALUES (?, ?, ?, ?)",
-                (report.route_id, report.bus_id, report.level, _to_text(report.timestamp)),
+                "INSERT INTO reports (route_id, bus_id, level, timestamp, client_id) VALUES (?, ?, ?, ?, ?)",
+                (report.route_id, report.bus_id, report.level, _to_text(report.timestamp), report.client_id),
             )
         if report.bus_id in self.buses:
             self.buses[report.bus_id].density = report.level
@@ -93,11 +98,19 @@ class Store:
     def reports_for_route(self, route_id: str) -> list[Report]:
         """All reports of a route, oldest first."""
         rows = self.db.execute(
-            "SELECT route_id, bus_id, level, timestamp FROM reports "
+            "SELECT route_id, bus_id, level, timestamp, client_id FROM reports "
             "WHERE route_id = ? ORDER BY timestamp, id",
             (route_id,),
         )
         return [Report(**dict(row)) for row in rows]
+
+    def last_report_time(self, client_id: str, bus_id: str) -> datetime | None:
+        """When this client last reported on this bus (for rate limiting)."""
+        row = self.db.execute(
+            "SELECT MAX(timestamp) FROM reports WHERE client_id = ? AND bus_id = ?",
+            (client_id, bus_id),
+        ).fetchone()
+        return datetime.fromisoformat(row[0]) if row[0] else None
 
     # --- Operator alerts (SQLite) ---
 

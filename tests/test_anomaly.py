@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app import anomaly
+from app import anomaly, config
 from app.models import Report, ReportIn
 from app.routes_data import ROUTES
 from app.store import Store
@@ -18,7 +18,7 @@ def at(minutes: float) -> datetime:
 
 def reports(*items: tuple[str, float]) -> list[Report]:
     """Build reports from (level, minutes after T0) pairs."""
-    return [Report(route_id="5", bus_id="5-1", level=level, timestamp=at(m)) for level, m in items]
+    return [Report(client_id="test", route_id="5", bus_id="5-1", level=level, timestamp=at(m)) for level, m in items]
 
 
 # --- Pure rule ---
@@ -58,12 +58,12 @@ def test_no_reports_is_not():
 
 @pytest.fixture
 def store(monkeypatch) -> Store:
-    monkeypatch.setattr(anomaly, "ANOMALY_WINDOW_SEC", WINDOW)
+    monkeypatch.setattr(config, "ANOMALY_WINDOW_SEC", WINDOW)
     return Store()
 
 
 def add(store: Store, level: str, minutes: float, route_id: str = "5") -> None:
-    store.add_report(ReportIn(route_id=route_id, bus_id="x", level=level), timestamp=at(minutes))
+    store.add_report(ReportIn(client_id="test", route_id=route_id, bus_id="x", level=level), timestamp=at(minutes))
 
 
 def add_high_run(store: Store, start: float = 0, route_id: str = "5") -> None:
@@ -133,7 +133,7 @@ def test_alerts_listed_active_first(store):
 
 def test_reports_persist_in_sqlite_file(tmp_path):
     db_file = str(tmp_path / "test.db")
-    Store(db_file).add_report(ReportIn(route_id="5", bus_id="5-1", level="low"), timestamp=T0)
+    Store(db_file).add_report(ReportIn(client_id="test", route_id="5", bus_id="5-1", level="low"), timestamp=T0)
     reopened = Store(db_file)
     assert [r.level for r in reopened.reports_for_route("5")] == ["low"]
     assert reopened.reports_for_route("5")[0].timestamp == T0
