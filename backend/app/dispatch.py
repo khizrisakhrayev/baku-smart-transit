@@ -2,8 +2,8 @@
 
 Donor choice: among other routes that are calm (dominant level "low" or no reports in
 the window), have no active alert and at least MIN_DONOR_BUSES buses (see config.py),
-pick the one with the most "low" reports, then the fewest medium/high reports, then the
-most buses.
+pick the one with the most "low" reports, then the fewest medium/high reports. Ties go
+to routes that do not pass a busy hub (HUB_STOP_IDS), then to routes with more buses.
 """
 from app import config, density
 from app.models import Alert, Bus, RouteDensity
@@ -40,9 +40,14 @@ def choose_donor(store: Store, target_route_id: str) -> str | None:
     best = max(candidates, key=lambda d: (
         d.counts["low"],
         -(d.counts["medium"] + d.counts["high"]),
+        not passes_hub(store, d.route_id),
         d.bus_count,
     ))
     return best.route_id
+
+
+def passes_hub(store: Store, route_id: str) -> bool:
+    return any(stop.id in config.HUB_STOP_IDS for stop in store.routes[route_id].stops)
 
 
 def dispatch_bus(store: Store, alert: Alert) -> tuple[Alert, Bus]:

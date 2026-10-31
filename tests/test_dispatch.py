@@ -82,6 +82,23 @@ def test_no_donor_when_every_route_is_busy():
     assert dispatch.choose_donor(store, "5") is None
 
 
+def test_tie_prefers_route_without_hub():
+    # No reports anywhere: every calm route ties, so a route outside the hubs donates.
+    donor = dispatch.choose_donor(store, "5")
+    assert not dispatch.passes_hub(store, donor)
+
+
+def test_tie_between_non_hub_routes_prefers_more_buses():
+    make_only_eligible("8", "13")  # both outside the hubs, 3 buses each
+    store.add_bus(store.buses["13-1"].model_copy(update={"id": "13-9"}))  # route 13 now has 4
+    assert dispatch.choose_donor(store, "5") == "13"
+
+
+def test_hub_route_with_more_low_reports_still_wins():
+    add_reports("1", "low", "low")  # route 1 passes 28 May and Nizami
+    assert dispatch.choose_donor(store, "5") == "1"
+
+
 def test_recommendation_text():
     assert dispatch.recommendation_text("8", "5") == "Tövsiyə: Marşrut 8 → Marşrut 5 (1 avtobus yönləndirin)"
 

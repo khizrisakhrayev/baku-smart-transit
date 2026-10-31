@@ -1,0 +1,21 @@
+# Normal run:  docker compose up --build
+# Demo run:    docker compose --env-file .env.demo up --build
+# Then open http://127.0.0.1:8000/
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DB_PATH: /data/data.db
+      ANOMALY_WINDOW_SEC: ${ANOMALY_WINDOW_SEC:-600}
+      RUSH_PERIOD_MIN: ${RUSH_PERIOD_MIN:-30}
+      SYNTHETIC_REPORTS: ${SYNTHETIC_REPORTS:-1}
+      SIM_SEED: ${SIM_SEED:-42}
+      MAX_REPORT_DISTANCE_M: ${MAX_REPORT_DISTANCE_M:-0}
+    volumes:
+      - transit-data:/data   # keeps reports and alerts between restarts
+    restart: unless-stopped
+
+volumes:
+  transit-data:

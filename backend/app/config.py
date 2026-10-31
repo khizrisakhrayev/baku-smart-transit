@@ -27,6 +27,9 @@ CHECK_INTERVAL_SEC = 10
 
 # --- Smart dispatch ---
 MIN_DONOR_BUSES = 3
+# Busy central hubs: routes through them get bigger fleets (routes_data.FLEET_SIZE) and
+# are the last choice as dispatch donors.
+HUB_STOP_IDS = ("28-may", "koroglu", "genclik", "nizami")
 
 # --- Passenger alternatives ---
 MAX_EXTRA_WAIT_MIN = 10    # suggest a less crowded bus only if it's at most this much later
