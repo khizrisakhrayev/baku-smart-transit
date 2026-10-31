@@ -36,7 +36,7 @@ def test_density_without_reports():
     d = density_of("1")
     assert d["dominant_level"] is None
     assert d["counts"] == {"low": 0, "medium": 0, "high": 0}
-    assert d["bus_count"] == config.BUSES_PER_ROUTE
+    assert d["bus_count"] == store.routes["1"].bus_count
     assert d["last_report_at"] is None
 
 

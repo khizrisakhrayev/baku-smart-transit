@@ -44,7 +44,7 @@ def test_eta_for_shared_stop_includes_all_its_routes():
     expected_routes = {r.id for r in ROUTES if any(s.id == "28-may" for s in r.stops)}
     assert len(expected_routes) > 2
     assert {e["route_id"] for e in etas} == expected_routes
-    assert len(etas) == len(expected_routes) * config.BUSES_PER_ROUTE
+    assert len(etas) == sum(r.bus_count for r in ROUTES if r.id in expected_routes)
     minutes = [e["eta_minutes"] for e in etas]
     assert minutes == sorted(minutes)
 
@@ -55,9 +55,9 @@ def test_eta_unknown_stop():
 
 def test_buses_filtered_by_route():
     buses = client.get("/api/buses", params={"route_id": "65"}).json()
-    assert len(buses) == config.BUSES_PER_ROUTE
+    assert len(buses) == store.routes["65"].bus_count
     assert {b["route_id"] for b in buses} == {"65"}
-    assert len(client.get("/api/buses").json()) == len(ROUTES) * config.BUSES_PER_ROUTE
+    assert len(client.get("/api/buses").json()) == sum(r.bus_count for r in ROUTES)
 
 
 def test_create_report():

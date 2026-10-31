@@ -99,4 +99,4 @@ def test_stream_endpoint_starts_with_bus_positions():
             lines.append(line)
     event, buses = parse("\n".join(lines))
     assert event == "buses"
-    assert len(buses) == len(ROUTES) * config.BUSES_PER_ROUTE
+    assert len(buses) == sum(r.bus_count for r in ROUTES)

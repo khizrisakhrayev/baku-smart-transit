@@ -67,7 +67,7 @@ def test_seed_and_tick_move_all_buses():
     store = Store()
     simulator.seed(store, ROUTES)
     assert len(store.routes) == len(ROUTES)
-    assert len(store.buses) == len(ROUTES) * config.BUSES_PER_ROUTE
+    assert len(store.buses) == sum(r.bus_count for r in ROUTES)
     before = {b.id: (b.lat, b.lon) for b in store.buses.values()}
     simulator.tick(store)
     assert all((b.lat, b.lon) != before[b.id] for b in store.buses.values())
@@ -84,3 +84,14 @@ def test_run_loop_ticks_in_background():
 
     asyncio.run(run_briefly())
     assert any(b.progress > 0 or b.path_index > 0 for b in store.buses.values())
+
+
+def test_each_route_gets_its_own_fleet_size():
+    store = Store()
+    simulator.seed(store, ROUTES)
+    for route in ROUTES:
+        assert len(store.buses_on_route(route.id)) == route.bus_count
+
+
+def test_segment_takes_about_30_seconds_on_the_map():
+    assert config.STEPS_PER_SEGMENT * config.TICK_SECONDS == 30

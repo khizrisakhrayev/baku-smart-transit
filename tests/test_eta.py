@@ -61,3 +61,9 @@ def test_etas_for_stop_sorted_with_density(route):
     assert [e.bus_id for e in result] == ["T-2", "T-1"]
     assert result[0].density == "high"
     assert result[1].density is None
+
+
+def test_displayed_eta_matches_map_speed(route):
+    # One segment: 30s on the map, scaled for display to 2.5 minutes.
+    assert eta.SEGMENT_SECONDS == 30
+    assert eta.eta_minutes(bus_at(0), route, "b") == 2.5

@@ -27,13 +27,14 @@ def next_stop(bus: Bus, route: Route) -> Stop:
     return path[(bus.path_index + 1) % len(path)]
 
 
-def create_buses(route: Route, count: int = config.BUSES_PER_ROUTE,
+def create_buses(route: Route, count: int | None = None,
                  rng: random.Random | None = None) -> list[Bus]:
-    """Create `count` buses spread evenly around the route's round trip.
+    """Create `count` buses (default: the route's bus_count) spread evenly around its round trip.
 
     With `rng`, the route's buses are shifted together by a random number of simulator
     steps, so different routes don't all reach their stops in sync (no bunching at hubs).
     """
+    count = count or route.bus_count
     path = route_path(route)
     total_steps = len(path) * config.STEPS_PER_SEGMENT
     shift = rng.randrange(total_steps) if rng else 0

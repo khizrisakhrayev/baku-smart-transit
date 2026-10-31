@@ -10,7 +10,7 @@ A stop can appear twice on the round-trip path (outbound and return); we take th
 soonest visit. If the bus has just left the stop, its next visit is a full loop away.
 
 Passengers see realistic times: the result is scaled by config.SIM_TIME_SCALE
-(see config.py), so one stop-to-stop segment shows as about 2.5 minutes.
+(see config.py), so one stop-to-stop segment (30s on the map) shows as 2.5 minutes.
 """
 from app import config
 from app.models import Bus, BusEta, Route

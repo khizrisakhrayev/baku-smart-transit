@@ -10,14 +10,15 @@ DB_PATH = os.getenv("DB_PATH", str(Path(__file__).resolve().parents[1] / "data.d
 
 # --- GPS simulator ---
 TICK_SECONDS = 2.0       # buses move every 2s
-STEPS_PER_SEGMENT = 5    # ticks to get from one stop to the next (10s)
-BUSES_PER_ROUTE = 3
+STEPS_PER_SEGMENT = 15   # ticks to get from one stop to the next (15 x 2s = 30s)
+BUSES_PER_ROUTE = 3      # default fleet; busy routes override it in routes_data.FLEET_SIZE
 SIM_SEED = int(os.getenv("SIM_SEED", "42"))  # random start offsets; same seed = same layout
 
 # --- ETA display ---
-# The simulator runs fast so the demo map stays lively; passengers see realistic times:
-# each simulated second counts as SIM_TIME_SCALE real seconds (one segment = 2.5 min).
-SIM_TIME_SCALE = 15
+# The simulator runs faster than real life so the demo map stays lively; passengers see
+# realistic times: each simulated second counts as SIM_TIME_SCALE real seconds.
+# One segment = 30s on the map x 5 = 2.5 min shown.
+SIM_TIME_SCALE = 5
 
 # --- Anomaly detection ---
 ANOMALY_WINDOW_SEC = int(os.getenv("ANOMALY_WINDOW_SEC", "600"))  # demo: 30

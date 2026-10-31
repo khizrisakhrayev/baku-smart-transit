@@ -1,6 +1,7 @@
 """Sanity checks for the static route network."""
 from collections import Counter
 
+from app import config
 from app.routes_data import ROUTE_DATA, ROUTES, STOP_DATA, STOPS
 
 
@@ -45,3 +46,11 @@ def test_stops_are_in_baku_area():
 def test_routes_share_hub_stops():
     for hub in ("28-may", "sahil", "koroglu", "genclik", "nizami", "elmler", "icerisheher"):
         assert sum(hub in stop_ids for _, stop_ids in ROUTE_DATA) >= 2, hub
+
+
+def test_busy_routes_get_bigger_fleets():
+    hubs = {"28-may", "koroglu", "genclik", "nizami"}
+    for route in ROUTES:
+        hub_count = len(hubs & {s.id for s in route.stops})
+        expected = 5 if hub_count >= 2 else 4 if hub_count == 1 else config.BUSES_PER_ROUTE
+        assert route.bus_count == expected, route.id

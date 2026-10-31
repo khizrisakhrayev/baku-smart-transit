@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from app import config
+
 DensityLevel = Literal["low", "medium", "high"]
 
 
@@ -18,6 +20,7 @@ class Route(BaseModel):
     id: str
     name: str
     stops: list[Stop]
+    bus_count: int = config.BUSES_PER_ROUTE  # fleet size in the simulator
 
 
 class Bus(BaseModel):

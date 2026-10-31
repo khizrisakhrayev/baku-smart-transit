@@ -157,3 +157,12 @@ Update common.js/style.css rather than duplicating. Run pytest -q and commit."
 Test the pending calculation. Run pytest -q and commit."
 - **Summary:** Passenger selection (routes + stop) saved to and restored from localStorage. anomaly.py gains pending_status/pending (sharing the rule's report window and "already handled" check, rule unchanged) exposed via GET /api/operator/pending; operator shows pending items, ⏳ tags in the route list and the rule help text with the real window. Pending unit and API tests added.
 - **Files changed:** backend/app/anomaly.py, backend/app/models.py, backend/app/main.py, frontend/js/passenger.js, frontend/js/operator.js, frontend/operator.html, frontend/css/style.css, tests/test_anomaly.py, tests/test_operator_api.py, AI_DECLARATION.md
+
+## 2026-10-31 15:30
+- **Tool:** Claude Code
+- **Prompt:** "Simulator tuning, config only where possible:
+1) Slow buses down so movement on the map looks realistic: one stop-to-stop segment should take about 30s of real time instead of 10s, still moving smoothly every 2s. Adjust SIM_TIME_SCALE so displayed ETAs stay realistic (~2-3 min per segment) and remain consistent with the new speed.
+2) Variable fleet size: central/busy routes (through 28-may, koroglu, genclik, nizami) get 4-5 buses, outer routes keep 3. Make it a per-route value in routes_data.py with the default from config.
+Update tests that assume a fixed bus count or speed. Run pytest -q and commit."
+- **Summary:** STEPS_PER_SEGMENT 5 -> 15 (30s per segment at 2s ticks) and SIM_TIME_SCALE 15 -> 5 (still 2.5 min shown per segment). Route.bus_count with FLEET_SIZE in routes_data.py (5 buses for routes through 2+ hubs, 4 through one, default 3 from config); simulator uses it. Tests now derive counts from each route; new fleet-size and speed tests.
+- **Files changed:** backend/app/config.py, backend/app/eta.py, backend/app/models.py, backend/app/routes_data.py, backend/app/simulator.py, tests/test_api.py, tests/test_dispatch.py, tests/test_eta.py, tests/test_health.py, tests/test_operator_api.py, tests/test_routes_data.py, tests/test_simulator.py, tests/test_stream.py, AI_DECLARATION.md

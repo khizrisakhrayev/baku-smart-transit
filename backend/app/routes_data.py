@@ -7,6 +7,7 @@ official BakuBus timetables or exact route paths.
 Stops are defined once in STOP_DATA and referenced by id from ROUTE_DATA, so a stop
 shared by several routes (e.g. "28-may") is the same stop everywhere.
 """
+from app import config
 from app.models import Route, Stop
 
 # (id, display name, lat, lon), grouped by district.
@@ -161,6 +162,14 @@ ROUTE_DATA: list[tuple[str, list[str]]] = [
             "emircan", "bulbule", "hava-limani"]),
 ]
 
+# Fleet size: busy routes through the central hubs (28 May, Koroğlu, Gənclik, Nizami)
+# get more buses: 5 if they pass two or more hubs, 4 if they pass one.
+# Routes not listed use config.BUSES_PER_ROUTE (3).
+FLEET_SIZE: dict[str, int] = {
+    "1": 5, "2": 5, "5": 5, "11": 5, "67": 5, "H1": 5,
+    "3": 4, "17": 4, "21": 4, "24": 4, "30": 4, "35": 4, "49": 4, "61": 4, "70": 4, "88": 4,
+}
+
 STOPS: dict[str, Stop] = {
     stop_id: Stop(id=stop_id, name=name, lat=lat, lon=lon) for stop_id, name, lat, lon in STOP_DATA
 }
@@ -168,7 +177,8 @@ STOPS: dict[str, Stop] = {
 
 def _build_route(route_id: str, stop_ids: list[str]) -> Route:
     stops = [STOPS[stop_id] for stop_id in stop_ids]
-    return Route(id=route_id, name=f"{stops[0].name} – {stops[-1].name}", stops=stops)
+    return Route(id=route_id, name=f"{stops[0].name} – {stops[-1].name}", stops=stops,
+                 bus_count=FLEET_SIZE.get(route_id, config.BUSES_PER_ROUTE))
 
 
 ROUTES: list[Route] = [_build_route(route_id, stop_ids) for route_id, stop_ids in ROUTE_DATA]

@@ -118,8 +118,8 @@ def test_dispatch_moves_bus_and_resolves_alert():
     assert body["alert"]["resolved_at"] is not None
     assert body["alert"]["dispatched_bus_id"] == bus["id"]
 
-    assert len(store.buses_on_route("5")) == config.BUSES_PER_ROUTE + 1
-    assert len(store.buses_on_route("8")) == config.BUSES_PER_ROUTE - 1
+    assert len(store.buses_on_route("5")) == store.routes["5"].bus_count + 1
+    assert len(store.buses_on_route("8")) == store.routes["8"].bus_count - 1
 
 
 def test_dispatched_bus_keeps_moving_on_new_route():
@@ -144,8 +144,9 @@ def test_dispatch_without_donor_conflicts():
 
 def test_dispatch_when_donor_lost_buses_conflicts():
     alert = flood("5")
-    donor_bus = store.buses_on_route(alert["donor_route_id"])[-1]
-    del store.buses[donor_bus.id]
+    donor_buses = store.buses_on_route(alert["donor_route_id"])
+    for bus in donor_buses[config.MIN_DONOR_BUSES - 1:]:  # leave the donor one bus short
+        del store.buses[bus.id]
     assert client.post(f"/api/operator/alerts/{alert['id']}/dispatch").status_code == 409
 
 
