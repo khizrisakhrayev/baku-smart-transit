@@ -12,9 +12,9 @@ from app.store import Store
 def route() -> Route:
     """Simple 3-stop route: path is A, B, C, B."""
     return Route(id="T", name="Test", stops=[
-        Stop(name="A", lat=40.0, lon=49.0),
-        Stop(name="B", lat=40.1, lon=49.1),
-        Stop(name="C", lat=40.2, lon=49.2),
+        Stop(id="a", name="A", lat=40.0, lon=49.0),
+        Stop(id="b", name="B", lat=40.1, lon=49.1),
+        Stop(id="c", name="C", lat=40.2, lon=49.2),
     ])
 
 
