@@ -88,6 +88,17 @@ class RouteDensity(BaseModel):
     last_report_at: datetime | None
 
 
+class RouteForecast(BaseModel):
+    """15-minute density forecast for one route (see forecast.py)."""
+    route_id: str
+    current_level: DensityLevel | None
+    predicted_level: DensityLevel | None
+    predicted_score: float | None   # 1 = low ... 3 = high
+    trend: Literal["rising", "stable", "falling"]
+    slope_per_min: float
+    early_warning: bool             # predicted high, not high now
+
+
 class Suggestion(BaseModel):
     """A less crowded bus to wait for instead of a crowded one (see alternatives.py)."""
     bus_id: str

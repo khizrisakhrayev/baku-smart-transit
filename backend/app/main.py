@@ -11,8 +11,8 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
-from app import alternatives, anomaly, config, density, dispatch, eta, simulator, trust
-from app.models import Alert, Bus, BusEta, Report, ReportIn, Route, RouteDensity, Stop
+from app import alternatives, anomaly, config, density, dispatch, eta, forecast, simulator, synthetic, trust
+from app.models import Alert, Bus, BusEta, Report, ReportIn, Route, RouteDensity, RouteForecast, Stop
 from app.routes_data import ROUTES
 from app.store import store, utcnow
 
@@ -28,6 +28,8 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(simulator.run(store)),
         asyncio.create_task(anomaly.run(store)),
     ]
+    if config.SYNTHETIC_REPORTS:
+        tasks.append(asyncio.create_task(synthetic.run(store)))
     yield
     for task in tasks:
         task.cancel()
@@ -96,6 +98,11 @@ def create_report(report_in: ReportIn) -> Report:
 @app.get("/api/operator/density")
 def operator_density() -> list[RouteDensity]:
     return density.summary(store)
+
+
+@app.get("/api/operator/forecast")
+def operator_forecast() -> list[RouteForecast]:
+    return forecast.summary(store)
 
 
 @app.get("/api/operator/alerts")

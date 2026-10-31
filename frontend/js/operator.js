@@ -23,6 +23,7 @@ const state = {
   densities: [],          // last /api/operator/density response
   alertRouteIds: new Set(),  // routes with an active alert
   knownAlertIds: null,    // alert ids seen so far; null until the first load
+  forecasts: {},          // route id -> /api/operator/forecast entry
 };
 
 // --- Map setup ---
@@ -275,6 +276,7 @@ function renderDensityTable() {
       <td>${d.counts.medium}</td>
       <td>${d.counts.high}</td>
       <td>${badge(d.dominant_level)}</td>
+      <td>${trendArrow(state.forecasts[d.route_id])}</td>
       <td>${confidenceBar(d.confidence)}</td>
       <td>${formatTime(d.last_report_at)}</td>
       <td><button class="btn-small" data-demo-route="${d.route_id}">Demo</button></td>
@@ -297,13 +299,41 @@ function dispatchLine(alert) {
     </div>`;
 }
 
+// Trend arrow for the density table, with the 15-minute prediction as a tooltip.
+const TREND_ARROWS = { rising: "↑", stable: "→", falling: "↓" };
+
+function trendArrow(forecast) {
+  if (!forecast || !forecast.predicted_level) return '<span class="trend">—</span>';
+  const title = `15 dəq sonra: ${densityLabel(forecast.predicted_level)}`;
+  return `<span class="trend trend-${forecast.trend}" title="${title}">${TREND_ARROWS[forecast.trend]}</span>`;
+}
+
+// Early warnings: routes predicted "high" in 15 min but not high now. Not real alerts.
+function warningItems() {
+  return Object.values(state.forecasts)
+    .filter((f) => f.early_warning && !state.alertRouteIds.has(f.route_id))
+    .map((f) => `
+      <li class="alert-item warning">
+        <strong>Marşrut ${routeLabel(f.route_id)}</strong>
+        <div>⚠ Proqnoz: 15 dəq sonra Yüksək sıxlıq gözlənilir</div>
+      </li>`)
+    .join("");
+}
+
 function renderAlerts(alerts) {
   const list = document.getElementById("alert-list");
-  if (!alerts.length) {
+  const warnings = warningItems();
+  if (!alerts.length && !warnings) {
     list.innerHTML = '<li class="hint">Xəbərdarlıq yoxdur</li>';
     return;
   }
-  list.innerHTML = alerts.map((a) => `
+  const active = alerts.filter((a) => !a.resolved_at);
+  const resolved = alerts.filter((a) => a.resolved_at);
+  list.innerHTML = alertItems(active) + warnings + alertItems(resolved);
+}
+
+function alertItems(alerts) {
+  return alerts.map((a) => `
     <li class="alert-item ${a.resolved_at ? "resolved" : "active"}">
       <div class="alert-head">
         <strong>Marşrut ${routeLabel(a.route_id)}</strong>
@@ -321,12 +351,14 @@ function renderAlerts(alerts) {
 // --- Polling ---
 
 async function refresh() {
-  const [buses, densities, alerts] = await Promise.all([
+  const [buses, densities, alerts, forecasts] = await Promise.all([
     api("/api/buses"),
     api("/api/operator/density"),
     api("/api/operator/alerts"),
+    api("/api/operator/forecast"),
   ]);
   state.densities = densities;
+  state.forecasts = Object.fromEntries(forecasts.map((f) => [f.route_id, f]));
   state.alertRouteIds = new Set(alerts.filter((a) => !a.resolved_at).map((a) => a.route_id));
   updateBusMarkers(buses);
   styleRouteLines();

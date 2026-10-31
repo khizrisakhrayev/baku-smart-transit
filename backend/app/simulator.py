@@ -5,6 +5,7 @@ consecutive stops of that path and advances 1/STEPS_PER_SEGMENT of the way each 
 so it reaches the next stop every STEPS_PER_SEGMENT * TICK_SECONDS seconds (see config.py).
 """
 import asyncio
+import random
 
 from app import config
 from app.models import Bus, Route, Stop
@@ -26,16 +27,33 @@ def next_stop(bus: Bus, route: Route) -> Stop:
     return path[(bus.path_index + 1) % len(path)]
 
 
-def create_buses(route: Route, count: int = config.BUSES_PER_ROUTE) -> list[Bus]:
-    """Create `count` buses spread evenly around the route's round trip."""
+def create_buses(route: Route, count: int = config.BUSES_PER_ROUTE,
+                 rng: random.Random | None = None) -> list[Bus]:
+    """Create `count` buses spread evenly around the route's round trip.
+
+    With `rng`, the route's buses are shifted together by a random number of simulator
+    steps, so different routes don't all reach their stops in sync (no bunching at hubs).
+    """
     path = route_path(route)
+    total_steps = len(path) * config.STEPS_PER_SEGMENT
+    shift = rng.randrange(total_steps) if rng else 0
     buses = []
     for n in range(count):
-        index = n * len(path) // count
-        stop = path[index]
-        buses.append(Bus(id=f"{route.id}-{n + 1}", route_id=route.id,
-                         path_index=index, lat=stop.lat, lon=stop.lon))
+        step = (n * total_steps // count + shift) % total_steps
+        bus = Bus(id=f"{route.id}-{n + 1}", route_id=route.id,
+                  path_index=step // config.STEPS_PER_SEGMENT,
+                  progress=(step % config.STEPS_PER_SEGMENT) / config.STEPS_PER_SEGMENT,
+                  lat=0, lon=0)
+        update_position(bus, path)
+        buses.append(bus)
     return buses
+
+
+def update_position(bus: Bus, path: list[Stop]) -> None:
+    """Set lat/lon from the bus's place on the path."""
+    current = path[bus.path_index]
+    following = path[(bus.path_index + 1) % len(path)]
+    bus.lat, bus.lon = interpolate(current, following, bus.progress)
 
 
 def step_bus(bus: Bus, route: Route) -> None:
@@ -45,9 +63,7 @@ def step_bus(bus: Bus, route: Route) -> None:
     if bus.progress >= 1 - 1e-9:  # arrived at next stop
         bus.path_index = (bus.path_index + 1) % len(path)
         bus.progress = 0.0
-    current = path[bus.path_index]
-    following = path[(bus.path_index + 1) % len(path)]
-    bus.lat, bus.lon = interpolate(current, following, bus.progress)
+    update_position(bus, path)
 
 
 def tick(store: Store) -> None:
@@ -57,10 +73,11 @@ def tick(store: Store) -> None:
 
 
 def seed(store: Store, routes: list[Route]) -> None:
-    """Load routes into the store and place their buses."""
+    """Load routes into the store and place their buses (random offsets, seeded)."""
+    rng = random.Random(config.SIM_SEED)
     for route in routes:
         store.add_route(route)
-        for bus in create_buses(route):
+        for bus in create_buses(route, rng=rng):
             store.add_bus(bus)
 
 

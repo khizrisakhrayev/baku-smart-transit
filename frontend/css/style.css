@@ -443,3 +443,11 @@ h2 { font-size: 1rem; margin: 0 0 0.5rem; }
   font-weight: 600;
   white-space: nowrap;
 }
+
+/* --- Forecast: early warnings and trend arrows --- */
+
+.alert-item.warning { border-left-color: var(--medium); background: #fff7e6; }
+
+.trend { font-size: 1.1rem; font-weight: 700; color: var(--muted); }
+.trend-rising { color: var(--high); }
+.trend-falling { color: var(--low); }

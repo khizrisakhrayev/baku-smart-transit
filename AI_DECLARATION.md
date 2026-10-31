@@ -104,3 +104,13 @@ Unit-test the rate limit, distance check and weighting. Commit."
 Unit-test the suggestion rules (same route, other route, too long wait, no alternative). Commit."
 - **Summary:** Added alternatives.py (suggestion for each crowded bus: soonest non-high bus at or after it within 10 min; most comfortable known-calm bus within 15 min), suggestion/most_comfortable fields on the ETA endpoint, and the highlighted suggestion box and "⭐ Ən rahat seçim" badge on the passenger ETA card; with unit and API tests.
 - **Files changed:** backend/app/alternatives.py, backend/app/models.py, backend/app/config.py, backend/app/main.py, frontend/js/passenger.js, frontend/css/style.css, tests/test_alternatives.py, AI_DECLARATION.md
+
+## 2026-10-31 13:50
+- **Tool:** Claude Code
+- **Prompt:** "1) Simulator realism: give each bus a random start offset along its route (seeded, deterministic in tests) so arrivals spread out instead of bunching.
+2) Synthetic background reports (config SYNTHETIC_REPORTS=1 by default, off in tests): every 5s generate a few reports with a rush-hour pattern, so central routes (through 28-may, koroglu, genclik) trend toward high and outer routes stay low. Use distinct synthetic client_ids.
+3) Forecast (logic in forecast.py, readable): per route, compute a density score (low=1, medium=2, high=3) over recent time buckets, fit a simple linear trend, and predict the score 15 minutes ahead. Return predicted level and trend (rising/stable/falling) in GET /api/operator/forecast.
+4) Early warning: if a route is predicted \"high\" in 15 min but not high now, show a yellow \"⚠ Proqnoz: 15 dəq sonra Yüksək sıxlıq gözlənilir\" item in the operator alerts panel (not a real alert), and a trend arrow ↑ → ↓ column in the density table.
+Unit-test the trend fit and predicted levels with fixed data. Commit."
+- **Summary:** Seeded per-route random start offsets in the simulator; synthetic.py background reports with a rush-hour wave on central routes; forecast.py (1-min buckets, least-squares trend, 15-min prediction, early warning) with GET /api/operator/forecast; operator early-warning items and trend arrows; forecast, synthetic and offset tests.
+- **Files changed:** backend/app/config.py, backend/app/simulator.py, backend/app/synthetic.py, backend/app/forecast.py, backend/app/models.py, backend/app/main.py, frontend/operator.html, frontend/js/operator.js, frontend/css/style.css, tests/conftest.py, tests/test_forecast.py, tests/test_synthetic.py, AI_DECLARATION.md
