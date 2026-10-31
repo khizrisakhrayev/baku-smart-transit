@@ -47,3 +47,15 @@ Then build frontend/passenger.html + js/passenger.js + css/style.css (UI text in
 Keep JS plain and readable, no build tools."
 - **Summary:** Demo flood now adds one anchor report at the window start plus 3 inside the window (density shows high: 3, alert still fires); /api/buses accepts route_id. Built the passenger page: Leaflet map with route, stops, live density-colored bus markers, stop ETA list, bus report panel and toast.
 - **Files changed:** backend/app/main.py, tests/test_api.py, tests/test_operator_api.py, frontend/passenger.html, frontend/js/passenger.js, frontend/css/style.css, AI_DECLARATION.md
+
+## 2026-10-31 12:36
+- **Tool:** Claude Code
+- **Prompt:** "Build frontend/operator.html + js/operator.js reusing css/style.css (Azerbaijani UI, desktop-first dashboard).
+- Leaflet map with all routes drawn, each polyline colored by its dominant density from /api/operator/density (green/orange/red/grey), and live bus markers.
+- Density table: route, buses, low/medium/high counts, dominant level badge, last report time.
+- Alerts panel from /api/operator/alerts: active alerts highlighted in red with route and time, \"Həll edildi\" button calling resolve. Show a toast and a short sound/flash when a new alert appears.
+- Summary cards on top: active buses, reports in window, active alerts.
+- A small \"Demo\" button per route calling /api/demo/flood-high.
+Poll every 3s. Add a nav link between passenger and operator pages. Also copy Leaflet into frontend/vendor so it works without CDN."
+- **Summary:** Built the operator dashboard (summary cards, density-colored route map with live buses, density table with per-route Demo buttons, alerts panel with resolve, toast/beep/flash on new alerts, 3s polling), added passenger/operator nav, and vendored Leaflet 1.9.4 (hash-verified) into frontend/vendor/leaflet.
+- **Files changed:** frontend/operator.html, frontend/js/operator.js, frontend/css/style.css, frontend/passenger.html, frontend/vendor/leaflet/*, AI_DECLARATION.md

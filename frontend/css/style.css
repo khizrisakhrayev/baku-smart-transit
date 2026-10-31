@@ -237,3 +237,106 @@ h2 { font-size: 1rem; margin: 0 0 0.5rem; }
 .toast.visible { transform: translate(-50%, 0); opacity: 1; }
 
 [hidden] { display: none !important; }
+
+/* --- Page navigation (top bar) --- */
+
+.nav { display: flex; gap: 0.25rem; }
+
+.nav a {
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  color: #fff;
+  text-decoration: none;
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+
+.nav a:hover { opacity: 1; background: rgba(255, 255, 255, 0.15); }
+.nav a.active { opacity: 1; background: #fff; color: var(--primary); font-weight: 600; }
+
+/* --- Operator dashboard (desktop first, stacks on small screens) --- */
+
+.dashboard {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  grid-template-areas:
+    "summary summary"
+    "map     alerts"
+    "table   table";
+  gap: 1rem;
+  padding: 1rem;
+  max-width: 1500px;
+  margin: 0 auto;
+}
+
+@media (max-width: 900px) {
+  .dashboard { grid-template-columns: 1fr; grid-template-areas: "summary" "alerts" "map" "table"; }
+}
+
+.summary { grid-area: summary; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+.map-card { grid-area: map; padding: 0; overflow: hidden; }
+.alerts-card { grid-area: alerts; max-height: 520px; overflow-y: auto; }
+.table-card { grid-area: table; }
+
+.map-card #map { height: 470px; }
+.map-card .legend { padding: 0.6rem 1rem; }
+
+.stat { display: flex; flex-direction: column; gap: 0.25rem; }
+.stat-label { color: var(--muted); font-size: 0.85rem; }
+.stat-value { font-size: 2rem; }
+
+/* --- Density table --- */
+
+.table-wrap { overflow-x: auto; }
+
+.density-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+
+.density-table th,
+.density-table td {
+  padding: 0.6rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.density-table th { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
+
+.btn-small {
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-small:hover { background: var(--bg); }
+
+/* --- Alerts --- */
+
+.alert-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+
+.alert-item {
+  padding: 0.75rem;
+  border-radius: 10px;
+  border-left: 5px solid var(--unknown);
+  background: var(--bg);
+  font-size: 0.9rem;
+}
+
+.alert-item.active { border-left-color: var(--high); background: #fdecec; }
+.alert-item.resolved { opacity: 0.65; }
+
+.alert-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }
+
+.btn-resolve { border-color: var(--high); color: var(--high); }
+.btn-resolve:hover { background: var(--high); color: #fff; }
+
+/* Flash the alerts panel when a new alert arrives. */
+@keyframes alert-flash {
+  0%, 50%, 100% { box-shadow: var(--shadow); }
+  25%, 75% { box-shadow: 0 0 0 4px var(--high), 0 0 24px rgba(229, 72, 77, 0.6); }
+}
+
+.alerts-card.flash { animation: alert-flash 1.2s ease-in-out 2; }

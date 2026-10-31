@@ -4,10 +4,74 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bakı Ağıllı Nəqliyyat — Operator</title>
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <h1>Operator paneli</h1>
+  <header class="topbar">
+    <div class="brand">🚌 Bakı Ağıllı Nəqliyyat · Operator paneli</div>
+    <nav class="nav">
+      <a href="passenger.html">Sərnişin</a>
+      <a href="operator.html" class="active">Operator</a>
+    </nav>
+  </header>
+
+  <main class="dashboard">
+    <section class="summary">
+      <div class="card stat">
+        <span class="stat-label">Aktiv avtobuslar</span>
+        <strong id="stat-buses" class="stat-value">–</strong>
+      </div>
+      <div class="card stat">
+        <span class="stat-label">Pəncərə ərzində bildirişlər</span>
+        <strong id="stat-reports" class="stat-value">–</strong>
+      </div>
+      <div class="card stat">
+        <span class="stat-label">Aktiv xəbərdarlıqlar</span>
+        <strong id="stat-alerts" class="stat-value">–</strong>
+      </div>
+    </section>
+
+    <section class="card map-card">
+      <div id="map"></div>
+      <div class="legend">
+        <span><i class="dot density-low"></i>Aşağı</span>
+        <span><i class="dot density-medium"></i>Orta</span>
+        <span><i class="dot density-high"></i>Yüksək</span>
+        <span><i class="dot density-unknown"></i>Məlum deyil</span>
+      </div>
+    </section>
+
+    <section id="alerts-card" class="card alerts-card">
+      <h2>Xəbərdarlıqlar</h2>
+      <ul id="alert-list" class="alert-list"></ul>
+    </section>
+
+    <section class="card table-card">
+      <h2>Marşrutlar üzrə sıxlıq</h2>
+      <div class="table-wrap">
+        <table class="density-table">
+          <thead>
+            <tr>
+              <th>Marşrut</th>
+              <th>Avtobus</th>
+              <th>Aşağı</th>
+              <th>Orta</th>
+              <th>Yüksək</th>
+              <th>Əsas səviyyə</th>
+              <th>Son bildiriş</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="density-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
   <script src="js/operator.js"></script>
 </body>
 </html>
