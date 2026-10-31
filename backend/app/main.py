@@ -12,8 +12,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import alternatives, analytics, anomaly, config, density, dispatch, eta, events, forecast, simulator, synthetic, trust
-from app.models import Alert, Analytics, Bus, PendingSummary, BusEta, Report, ReportIn, Route, RouteDensity, RouteForecast, Stop
+from app import alternatives, analytics, anomaly, config, density, dispatch, eta, events, forecast, overview, simulator, synthetic, trust
+from app.models import Alert, Analytics, Bus, Overview, PendingSummary, BusEta, Report, ReportIn, Route, RouteDensity, RouteForecast, Stop
 from app.routes_data import ROUTES
 from app.store import store, utcnow
 
@@ -106,6 +106,12 @@ def create_report(report_in: ReportIn) -> Report:
 
 
 # --- Operator API ---
+
+@app.get("/api/operator/overview")
+def operator_overview() -> Overview:
+    """Routes (with stops), buses, density, forecast, pending and alerts in one batched response."""
+    return overview.build(store)
+
 
 @app.get("/api/operator/density")
 def operator_density() -> list[RouteDensity]:

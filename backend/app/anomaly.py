@@ -46,8 +46,7 @@ def is_anomalous(reports: list[Report], window_sec: float) -> bool:
 
 def recent_reports(store: Store, route_id: str, now: datetime) -> list[Report]:
     """The reports the rule looks at: the last 2 windows (+1 min slack)."""
-    lookback = timedelta(seconds=2 * config.ANOMALY_WINDOW_SEC + 60)
-    return store.reports_for_route(route_id, since=now - lookback)
+    return store.reports_for_route(route_id, since=lookback_start(now))
 
 
 def already_handled(store: Store, route_id: str, reports: list[Report]) -> bool:
@@ -84,6 +83,25 @@ def pending_status(reports: list[Report], window_sec: float, now: datetime) -> t
     return len(run), max(0.0, (window_reached_at - now).total_seconds())
 
 
+def lookback_start(now: datetime) -> datetime:
+    return now - timedelta(seconds=2 * config.ANOMALY_WINDOW_SEC + 60)
+
+
+def pending_route(route_id: str, reports: list[Report], resolved_at: datetime | None,
+                  now: datetime) -> PendingRoute | None:
+    """Pure: the route's pending status (caller skips routes with an active alert)."""
+    status = pending_status(reports, config.ANOMALY_WINDOW_SEC, now)
+    if status is None or (resolved_at and reports[-1].timestamp <= resolved_at):
+        return None  # not high, or this run was already handled
+    high_reports, seconds = status
+    return PendingRoute(route_id=route_id, high_reports=high_reports, seconds_remaining=round(seconds))
+
+
+def pending_summary(routes: list[PendingRoute]) -> PendingSummary:
+    return PendingSummary(window_sec=config.ANOMALY_WINDOW_SEC,
+                          required_reports=config.MIN_HIGH_REPORTS, routes=routes)
+
+
 def pending(store: Store, now: datetime | None = None) -> PendingSummary:
     """Routes heading toward an alert: a current high run, no active alert, not already handled."""
     now = now or utcnow()
@@ -91,15 +109,11 @@ def pending(store: Store, now: datetime | None = None) -> PendingSummary:
     for route_id in store.routes:
         if store.active_alert(route_id):
             continue
-        reports = recent_reports(store, route_id, now)
-        status = pending_status(reports, config.ANOMALY_WINDOW_SEC, now)
-        if status is None or already_handled(store, route_id, reports):
-            continue
-        high_reports, seconds = status
-        routes.append(PendingRoute(route_id=route_id, high_reports=high_reports,
-                                   seconds_remaining=round(seconds)))
-    return PendingSummary(window_sec=config.ANOMALY_WINDOW_SEC,
-                          required_reports=config.MIN_HIGH_REPORTS, routes=routes)
+        entry = pending_route(route_id, recent_reports(store, route_id, now),
+                              store.last_resolved_at(route_id), now)
+        if entry:
+            routes.append(entry)
+    return pending_summary(routes)
 
 
 def check_all(store: Store, now: datetime | None = None) -> list[Alert]:

@@ -136,6 +136,16 @@ class Analytics(BaseModel):
     density_index: int | None  # 0 (all low) - 100 (all high)
 
 
+class Overview(BaseModel):
+    """Everything the operator page needs, in one response (see overview.py)."""
+    routes: list[Route]
+    buses: list[Bus]
+    densities: list[RouteDensity]
+    forecasts: list[RouteForecast]
+    pending: PendingSummary
+    alerts: list[Alert]
+
+
 class Suggestion(BaseModel):
     """A less crowded bus to wait for instead of a crowded one (see alternatives.py)."""
     bus_id: str

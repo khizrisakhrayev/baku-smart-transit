@@ -16,7 +16,8 @@ cd backend
 uvicorn app.main:app --reload
 ```
 
-Open http://localhost:8000/.
+Open http://127.0.0.1:8000/. (On Windows, `localhost` is tried as IPv6 first; uvicorn
+listens on IPv4 only, so every new connection via `localhost` can lose up to ~2s.)
 
 **Demo mode** (alerts and forecast warnings within a couple of minutes), PowerShell:
 

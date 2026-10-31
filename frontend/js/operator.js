@@ -7,6 +7,7 @@
 // - bus markers are shown only for the selected route and alerted routes.
 
 const IDLE_COLOR = UNKNOWN_COLOR;
+const IDLE_STYLE = { color: IDLE_COLOR, weight: 3, opacity: 0.5 }; // visible but calm
 const SEVERITY = { high: 3, medium: 2, low: 1 }; // alerts rank above all (4), no data is 0
 
 const state = {
@@ -20,6 +21,7 @@ const state = {
   knownAlertIds: null,    // alert ids seen so far; null until the first load
   forecasts: {},          // route id -> /api/operator/forecast entry
   buses: [],              // latest bus positions (from the live stream or polling)
+  networkBounds: null,    // central Baku view, see centralBounds()
   pending: {},            // route id -> {high_reports, seconds_remaining}: high, no alert yet
   rule: null,             // {window_sec, required_reports} from /api/operator/pending
 };
@@ -102,20 +104,45 @@ function notifyNewAlerts(alerts) {
 
 // --- Routes on the map ---
 
-async function loadRoutes() {
-  const routes = await api("/api/routes");
-  const allPoints = [];
+function drawRouteLines(routes) {
   for (const route of routes) {
     state.routes[route.id] = route;
-    const points = route.stops.map((s) => [s.lat, s.lon]);
-    allPoints.push(...points);
-    state.routeLines[route.id] = L.polyline(points, { color: IDLE_COLOR, weight: 3, opacity: 0.35 })
+    state.routeLines[route.id] = L.polyline(route.stops.map((s) => [s.lat, s.lon]), IDLE_STYLE)
       .bindTooltip(`Marşrut ${route.id}: ${route.name}`, { sticky: true })
       .on("click", () => selectRoute(route.id))
       .addTo(map);
   }
-  map.fitBounds(allPoints, { padding: [30, 30] });
 }
+
+// --- Network view: central Baku, not the whole region ---
+
+// Bounds of the middle 90% of all stops (5th-95th percentile of lat and lon): the city
+// centre stays in view while far ends (airport, Lökbatan, Maştağa) are left out.
+function centralBounds(routes) {
+  const points = routes.flatMap((route) => route.stops.map((s) => [s.lat, s.lon]));
+  const percentile = (values, p) => values.sort((a, b) => a - b)[Math.floor(p * (values.length - 1))];
+  const lats = points.map(([lat]) => lat);
+  const lons = points.map(([, lon]) => lon);
+  return L.latLngBounds([percentile(lats, 0.05), percentile(lons, 0.05)],
+                        [percentile(lats, 0.95), percentile(lons, 0.95)]);
+}
+
+function showNetworkView() {
+  map.fitBounds(state.networkBounds, { padding: [20, 20] });
+}
+
+const NetworkViewButton = L.Control.extend({
+  options: { position: "topright" },
+  onAdd() {
+    const button = L.DomUtil.create("button", "map-button");
+    button.type = "button";
+    button.textContent = "Şəbəkə görünüşü";
+    L.DomEvent.disableClickPropagation(button);
+    L.DomEvent.on(button, "click", showNetworkView);
+    return button;
+  },
+});
+new NetworkViewButton().addTo(map);
 
 function styleRouteLines() {
   for (const d of state.densities) {
@@ -128,7 +155,7 @@ function styleRouteLines() {
       line.setStyle({ color, weight: selected ? 8 : 6, opacity: 0.9 });
       line.bringToFront();
     } else {
-      line.setStyle({ color: IDLE_COLOR, weight: 3, opacity: 0.35 });
+      line.setStyle(IDLE_STYLE);
     }
   }
   // Keep the selected route on top of other highlighted routes.
@@ -487,14 +514,14 @@ async function refreshAnalytics() {
 
 // --- Polling ---
 
+// One request per poll: /api/operator/overview (batched on the server).
 async function refresh() {
-  const [buses, densities, alerts, forecasts, pending] = await Promise.all([
-    live.connected ? state.buses : api("/api/buses"), // pushed by the stream while live
-    api("/api/operator/density"),
-    api("/api/operator/alerts"),
-    api("/api/operator/forecast"),
-    api("/api/operator/pending"),
-  ]);
+  applyOverview(await api("/api/operator/overview"));
+}
+
+function applyOverview(data) {
+  const { densities, alerts, forecasts, pending } = data;
+  const buses = live.connected ? state.buses : data.buses; // the stream's positions are fresher
   state.rule = { window_sec: pending.window_sec, required_reports: pending.required_reports };
   state.pending = Object.fromEntries(pending.routes.map((p) => [p.route_id, p]));
   renderRule();
@@ -554,11 +581,23 @@ function onLiveBuses(buses) {
   document.getElementById("stat-buses").textContent = buses.length;
 }
 
-loadRoutes().then(refresh).catch(console.error);
-// Alerts are pushed the moment they change; refresh() then shows them (toast, beep, flash).
-startLiveStream({ buses: onLiveBuses, alert: () => refresh().catch(console.error) });
-setInterval(() => refresh().catch(console.error), POLL_MS);
+// First paint from a single request; only then start the stream, polling and analytics.
+async function start() {
+  const data = await api("/api/operator/overview");
+  drawRouteLines(data.routes);
+  state.networkBounds = centralBounds(data.routes);
+  showNetworkView();
+  applyOverview(data);
 
-createCharts();
-refreshAnalytics().catch(console.error);
-setInterval(() => refreshAnalytics().catch(console.error), ANALYTICS_MS);
+  // Alerts are pushed the moment they change; refresh() then shows them (toast, beep, flash).
+  startLiveStream({ buses: onLiveBuses, alert: () => refresh().catch(console.error) });
+  setInterval(() => refresh().catch(console.error), POLL_MS);
+  createCharts();
+  refreshAnalytics().catch(console.error);
+  setInterval(() => refreshAnalytics().catch(console.error), ANALYTICS_MS);
+}
+
+start().catch((error) => {
+  console.error(error);
+  showToast("Məlumat yüklənmədi, səhifəni yeniləyin");
+});

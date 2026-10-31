@@ -62,19 +62,27 @@ def is_early_warning(predicted_level: str | None, current_level: str | None) -> 
     return predicted_level == "high" and current_level != "high"
 
 
+def history_start(now: datetime) -> datetime:
+    return now - timedelta(seconds=config.FORECAST_BUCKET_SEC * config.FORECAST_BUCKETS)
+
+
 def forecast_route(store: Store, route: Route, now: datetime) -> RouteForecast:
     current_level = density.route_summary(store, route, now).dominant_level
-    history_sec = config.FORECAST_BUCKET_SEC * config.FORECAST_BUCKETS
-    recent = store.reports_for_route(route.id, since=now - timedelta(seconds=history_sec))
+    recent = store.reports_for_route(route.id, since=history_start(now))
+    return forecast_from(route.id, recent, current_level, now)
+
+
+def forecast_from(route_id: str, recent: list[Report], current_level: str | None, now: datetime) -> RouteForecast:
+    """Pure: the forecast from the route's recent reports and its current level."""
     points = bucket_points(recent, now)
     if not points:
-        return RouteForecast(route_id=route.id, current_level=current_level, predicted_level=None,
+        return RouteForecast(route_id=route_id, current_level=current_level, predicted_level=None,
                              predicted_score=None, trend="stable", slope_per_min=0.0, early_warning=False)
     slope, intercept = fit_line(points)
     predicted_score = min(3.0, max(1.0, intercept + slope * config.FORECAST_HORIZON_MIN))
     predicted_level = score_to_level(predicted_score)
     return RouteForecast(
-        route_id=route.id,
+        route_id=route_id,
         current_level=current_level,
         predicted_level=predicted_level,
         predicted_score=round(predicted_score, 2),
