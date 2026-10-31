@@ -26,6 +26,10 @@ CHECK_INTERVAL_SEC = 10
 # --- Smart dispatch ---
 MIN_DONOR_BUSES = 3
 
+# --- Passenger alternatives ---
+MAX_EXTRA_WAIT_MIN = 10    # suggest a less crowded bus only if it's at most this much later
+COMFORT_HORIZON_MIN = 15   # "Ən rahat seçim" considers buses arriving within this time
+
 # --- Report trust ---
 REPORT_COOLDOWN_SEC = 60  # one report per client per bus per minute
 MAX_REPORT_DISTANCE_M = float(os.getenv("MAX_REPORT_DISTANCE_M", "500"))  # 0 disables the check

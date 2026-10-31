@@ -113,6 +113,7 @@ h2 { font-size: 1rem; margin: 0 0 0.5rem; }
 
 .eta-list li {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
   padding: 0.6rem 0;
@@ -417,3 +418,28 @@ h2 { font-size: 1rem; margin: 0 0 0.5rem; }
 .confidence-fill { height: 100%; background: var(--primary); }
 
 .btn:disabled { opacity: 0.6; cursor: wait; }
+
+/* --- Passenger alternatives (ETA card) --- */
+
+.suggestion {
+  flex-basis: 100%;
+  padding: 0.5rem 0.7rem;
+  border-left: 4px solid var(--medium);
+  border-radius: 8px;
+  background: #fff7e6;
+  font-size: 0.85rem;
+}
+
+.eta-list li.comfortable { background: #eaf7f0; border-radius: 8px; padding-left: 0.4rem; padding-right: 0.4rem; }
+
+.comfort-badge {
+  display: inline-block;
+  margin-left: 0.3rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--low);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+}

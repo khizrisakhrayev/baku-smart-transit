@@ -94,3 +94,13 @@ Then report trust (keep it simple, put logic in trust.py):
 Unit-test the rate limit, distance check and weighting. Commit."
 - **Summary:** Added config.py with all tunables (breaking the import loop) and suffix-free dispatch texts. Added trust.py (rate limit, haversine distance check, freshness weight, confidence), client_id/lat/lon on reports with a SQLite column migration, weighted dominant level + confidence in density, passenger client id/geolocation/error toasts, and an operator confidence bar; with trust unit and API tests.
 - **Files changed:** backend/app/config.py, backend/app/trust.py, backend/app/density.py, backend/app/models.py, backend/app/store.py, backend/app/main.py, backend/app/anomaly.py, backend/app/dispatch.py, backend/app/simulator.py, backend/app/eta.py, frontend/js/passenger.js, frontend/js/operator.js, frontend/operator.html, frontend/css/style.css, tests/test_trust.py, tests/test_anomaly.py, tests/test_api.py, tests/test_dispatch.py, tests/test_eta.py, tests/test_health.py, tests/test_operator_api.py, tests/test_simulator.py, AI_DECLARATION.md
+
+## 2026-10-31 13:32
+- **Tool:** Claude Code
+- **Prompt:** "Passenger alternatives (logic in alternatives.py):
+- In GET /api/stops/{stop_id}/eta, for each bus with density \"high\", add a suggestion: the next bus arriving at the same stop (same or any other route serving the stop) with density low/medium/unknown, with its eta and an extra-wait in minutes. Only suggest it if extra wait <= 10 minutes.
+- Passenger ETA card: under a crowded bus show \"💡 Bu avtobus doludur. {route} {eta} dəq sonra gəlir (sıxlıq: Orta)\" in a highlighted box.
+- Also add a stop-level \"Ən rahat seçim\" badge on the least crowded bus within the next 15 minutes.
+Unit-test the suggestion rules (same route, other route, too long wait, no alternative). Commit."
+- **Summary:** Added alternatives.py (suggestion for each crowded bus: soonest non-high bus at or after it within 10 min; most comfortable known-calm bus within 15 min), suggestion/most_comfortable fields on the ETA endpoint, and the highlighted suggestion box and "⭐ Ən rahat seçim" badge on the passenger ETA card; with unit and API tests.
+- **Files changed:** backend/app/alternatives.py, backend/app/models.py, backend/app/config.py, backend/app/main.py, frontend/js/passenger.js, frontend/css/style.css, tests/test_alternatives.py, AI_DECLARATION.md

@@ -11,7 +11,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
-from app import anomaly, config, density, dispatch, eta, simulator, trust
+from app import alternatives, anomaly, config, density, dispatch, eta, simulator, trust
 from app.models import Alert, Bus, BusEta, Report, ReportIn, Route, RouteDensity, Stop
 from app.routes_data import ROUTES
 from app.store import store, utcnow
@@ -73,7 +73,7 @@ def list_stops(route_id: str) -> list[Stop]:
 def stop_eta(stop_id: str) -> list[BusEta]:
     if not store.routes_with_stop(stop_id):
         raise HTTPException(404, "Dayanacaq tapılmadı")
-    return eta.etas_for_stop(store, stop_id)
+    return alternatives.annotate(eta.etas_for_stop(store, stop_id))
 
 
 @app.post("/api/reports", status_code=201)

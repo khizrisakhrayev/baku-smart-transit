@@ -88,8 +88,19 @@ class RouteDensity(BaseModel):
     last_report_at: datetime | None
 
 
+class Suggestion(BaseModel):
+    """A less crowded bus to wait for instead of a crowded one (see alternatives.py)."""
+    bus_id: str
+    route_id: str
+    eta_minutes: float
+    density: DensityLevel | None
+    extra_wait_minutes: float
+
+
 class BusEta(BaseModel):
     bus_id: str
     route_id: str
     eta_minutes: float
     density: DensityLevel | None
+    suggestion: Suggestion | None = None  # only for "high" buses
+    most_comfortable: bool = False        # "Ən rahat seçim" at this stop

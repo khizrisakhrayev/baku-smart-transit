@@ -177,13 +177,29 @@ async function refreshEta() {
   list.innerHTML = etas.length ? "" : '<li class="hint">Yaxınlaşan avtobus yoxdur</li>';
   for (const eta of etas) {
     const item = document.createElement("li");
+    item.classList.toggle("comfortable", eta.most_comfortable);
     item.innerHTML = `
       <span class="route-tag">${eta.route_id}</span>
-      <span class="eta-bus">Avtobus ${eta.bus_id}</span>
+      <span class="eta-bus">
+        Avtobus ${eta.bus_id}
+        ${eta.most_comfortable ? '<span class="comfort-badge">⭐ Ən rahat seçim</span>' : ""}
+      </span>
       <span class="badge ${densityClass(eta.density)}">${densityLabel(eta.density)}</span>
-      <strong class="eta-time">${formatMinutes(eta.eta_minutes)}</strong>`;
+      <strong class="eta-time">${formatMinutes(eta.eta_minutes)}</strong>
+      ${suggestionBox(eta.suggestion)}`;
     list.appendChild(item);
   }
+}
+
+// Hint under a crowded bus: a less crowded bus worth waiting for (from the server).
+function suggestionBox(suggestion) {
+  if (!suggestion) return "";
+  const minutes = Math.max(1, Math.round(suggestion.eta_minutes));
+  return `
+    <div class="suggestion">
+      💡 Bu avtobus doludur. Marşrut ${suggestion.route_id} ${minutes} dəq sonra gəlir
+      (sıxlıq: ${densityLabel(suggestion.density)})
+    </div>`;
 }
 
 // --- Live buses ---
