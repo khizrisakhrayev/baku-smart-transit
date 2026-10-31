@@ -2,7 +2,7 @@
 
 - Rate limit: one report per client per bus per REPORT_COOLDOWN_SEC.
 - Distance: if the passenger sent a location, it must be within MAX_REPORT_DISTANCE_M
-  of the bus (0 disables the check).
+  of the bus. Off by default (0) because bus GPS is simulated; set e.g. 500 for real GPS.
 - Freshness: a report's weight falls linearly from 1.0 (now) to 0.0 (window end).
 - Confidence (0-1) = reporter factor * average freshness, where the reporter factor is
   unique clients / CONFIDENT_CLIENTS, capped at 1. Many fresh, independent reporters

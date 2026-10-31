@@ -54,5 +54,8 @@ STREAM_KEEPALIVE_SEC = 15  # comment line sent when nothing else happened
 
 # --- Report trust ---
 REPORT_COOLDOWN_SEC = 60  # one report per client per bus per minute
-MAX_REPORT_DISTANCE_M = float(os.getenv("MAX_REPORT_DISTANCE_M", "500"))  # 0 disables the check
+# Proximity check: reject a report whose location is farther than this from the bus.
+# 0 = disabled (default): bus positions are simulated, so a real phone is never near them.
+# With real bus GPS, set e.g. MAX_REPORT_DISTANCE_M=500 to enable it.
+MAX_REPORT_DISTANCE_M = float(os.getenv("MAX_REPORT_DISTANCE_M", "0"))
 CONFIDENT_CLIENTS = 5     # unique reporters needed for full confidence

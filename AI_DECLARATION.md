@@ -142,3 +142,9 @@ Keep code readable. Test the analytics endpoint. Commit."
 Update common.js/style.css rather than duplicating. Run pytest -q and commit."
 - **Summary:** Added js/common.js (shared API/formatting/toast/map/live-stream helpers, SVG bus icon and marker sync) used by both pages; passenger page now supports up to 3 route chips with validated distinct line colors, route-colored bus outlines and zoom-dependent stop dots; operator page reorganized into Xəritə/Alertlər/Analitika tabs with an alert count badge; style.css rewritten around a spacing/type scale, one font and 3 accent colors, with empty states; landing page restyled. No backend changes.
 - **Files changed:** frontend/js/common.js, frontend/js/passenger.js, frontend/js/operator.js, frontend/passenger.html, frontend/operator.html, frontend/index.html, frontend/css/style.css, AI_DECLARATION.md
+
+## 2026-10-31 15:00
+- **Tool:** Claude Code
+- **Prompt:** "Change the default of MAX_REPORT_DISTANCE_M in config.py to 0 (disabled), since GPS is simulated. Keep the feature: document in README/config that setting it to e.g. 500 enables the proximity check for real GPS. Update tests accordingly, run pytest -q and commit."
+- **Summary:** Proximity check now off by default (MAX_REPORT_DISTANCE_M=0) with docs in config.py, trust.py and a new README.md (run, demo mode, settings); distance tests enable the check explicitly and new tests cover the disabled default.
+- **Files changed:** backend/app/config.py, backend/app/trust.py, README.md, tests/test_trust.py, AI_DECLARATION.md

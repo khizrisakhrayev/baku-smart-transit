@@ -54,26 +54,32 @@ def test_first_report_is_never_limited(db):
 BUS = Bus(id="5-1", route_id="5", lat=40.3660, lon=49.8317)
 
 
+@pytest.fixture
+def proximity_check(monkeypatch):
+    """Enable the check as it would be with real bus GPS (it's off by default)."""
+    monkeypatch.setattr(config, "MAX_REPORT_DISTANCE_M", 500)
+
+
+def test_distance_check_is_off_by_default():
+    assert config.MAX_REPORT_DISTANCE_M == 0
+    assert not trust.is_too_far(report_in(lat=41.0, lon=49.0), BUS)  # ~70 km away
+
+
 def test_distance_of_known_offset():
     # 0.01° of latitude is about 1.11 km.
     assert trust.distance_m(40.0, 49.0, 40.01, 49.0) == pytest.approx(1112, abs=5)
 
 
-def test_report_without_location_is_accepted():
+def test_report_without_location_is_accepted(proximity_check):
     assert not trust.is_too_far(report_in(), BUS)
 
 
-def test_report_near_bus_is_accepted():
+def test_report_near_bus_is_accepted(proximity_check):
     assert not trust.is_too_far(report_in(lat=40.3680, lon=49.8317), BUS)  # ~220 m
 
 
-def test_report_far_from_bus_is_rejected():
+def test_report_far_from_bus_is_rejected(proximity_check):
     assert trust.is_too_far(report_in(lat=40.3760, lon=49.8317), BUS)  # ~1.1 km
-
-
-def test_distance_check_can_be_disabled(monkeypatch):
-    monkeypatch.setattr(config, "MAX_REPORT_DISTANCE_M", 0)
-    assert not trust.is_too_far(report_in(lat=41.0, lon=49.0), BUS)
 
 
 def test_lat_without_lon_is_invalid():
@@ -163,7 +169,12 @@ def test_api_rate_limit_returns_429(api_store):
     assert post(bus_id="5-2").status_code == 201
 
 
-def test_api_rejects_report_far_from_bus(api_store):
+def test_api_accepts_far_report_by_default(api_store):
+    bus = api_store.buses["5-1"]
+    assert post(lat=bus.lat + 0.5, lon=bus.lon).status_code == 201  # ~55 km away
+
+
+def test_api_rejects_report_far_from_bus(api_store, proximity_check):
     bus = api_store.buses["5-1"]
     response = post(lat=bus.lat + 0.01, lon=bus.lon)
     assert response.status_code == 422
@@ -171,12 +182,12 @@ def test_api_rejects_report_far_from_bus(api_store):
     assert api_store.reports_for_route("5") == []
 
 
-def test_api_accepts_report_near_bus(api_store):
+def test_api_accepts_report_near_bus(api_store, proximity_check):
     bus = api_store.buses["5-1"]
     assert post(lat=bus.lat + 0.001, lon=bus.lon).status_code == 201
 
 
-def test_rejected_far_report_does_not_count_for_rate_limit(api_store):
+def test_rejected_far_report_does_not_count_for_rate_limit(api_store, proximity_check):
     bus = api_store.buses["5-1"]
     post(lat=bus.lat + 0.01, lon=bus.lon)
     assert post().status_code == 201
