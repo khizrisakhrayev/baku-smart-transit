@@ -22,3 +22,16 @@ timestamp, the tool used, the exact prompt, a short summary of what was generate
 - **Prompt:** "Add the passenger API. GET /api/stops?route_id returns stops of a route. GET /api/stops/{stop_id}/eta returns, for each bus approaching that stop, minutes until arrival and current density, computed in eta.py from the bus position and simulator speed. POST /api/reports accepts {route_id, bus_id, level: low|medium|high} with validation, stores it with a timestamp in store.py, and returns the report. Each bus exposes its latest density level in /api/buses. Add unit tests for eta.py and API tests for these endpoints."
 - **Summary:** Added stop ids, density report models and storage, ETA calculation (remaining segments × simulator segment time, soonest visit on the round trip) and the /api/stops, /api/stops/{stop_id}/eta and /api/reports endpoints, with unit and API tests.
 - **Files changed:** backend/app/routes_data.py, backend/app/models.py, backend/app/store.py, backend/app/eta.py, backend/app/main.py, tests/test_simulator.py, tests/test_eta.py, tests/test_api.py, AI_DECLARATION.md
+
+## 2026-10-31 12:26
+- **Tool:** Claude Code
+- **Prompt:** "Add the operator module.
+1) Persist reports in SQLite (backend/data.db, stdlib sqlite3, created on startup; tests use a temp/in-memory DB).
+2) GET /api/operator/density: per route, the dominant level from reports in the last ANOMALY_WINDOW_SEC, report counts per level, bus count, and last report time.
+3) anomaly.py: a route is anomalous when it has had at least 3 reports, all \"high\", across a span of at least ANOMALY_WINDOW_SEC, with no low/medium report in between. Then create one active alert per route with the message \"Əlavə avtobus ehtiyatı ayrılmalıdır\", route_id and created_at. Do not duplicate active alerts. Check on each new report and every 10s in the background.
+4) GET /api/operator/alerts (active first) and POST /api/operator/alerts/{id}/resolve.
+5) Make ETA realistic: add SIM_TIME_SCALE in eta.py so one stop-to-stop segment shows as about 2-3 minutes.
+6) Add POST /api/demo/flood-high?route_id to quickly send high reports for demo.
+Unit-test the anomaly rule with fake timestamps (no sleeping) and API-test the endpoints."
+- **Summary:** Moved reports and alerts to SQLite, added the anomaly rule with a background checker, per-route density overview, alert list/resolve endpoints, a demo flood endpoint (backdated high reports), and SIM_TIME_SCALE=15 for 2.5-minute segment ETAs; with anomaly unit tests and operator API tests.
+- **Files changed:** backend/app/models.py, backend/app/store.py, backend/app/anomaly.py, backend/app/density.py, backend/app/eta.py, backend/app/main.py, tests/conftest.py, tests/test_anomaly.py, tests/test_operator_api.py, tests/test_api.py, tests/test_eta.py, AI_DECLARATION.md

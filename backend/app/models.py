@@ -1,4 +1,4 @@
-"""Pydantic models for routes, stops, buses, density reports and ETAs."""
+"""Pydantic models for routes, stops, buses, density reports, alerts and ETAs."""
 from datetime import datetime
 from typing import Literal
 
@@ -45,6 +45,25 @@ class ReportIn(BaseModel):
 
 class Report(ReportIn):
     timestamp: datetime
+
+
+class Alert(BaseModel):
+    """Operator alert; active while `resolved_at` is None."""
+    id: int
+    route_id: str
+    message: str
+    created_at: datetime
+    resolved_at: datetime | None = None
+
+
+class RouteDensity(BaseModel):
+    """Operator overview of one route's recent passenger reports."""
+    route_id: str
+    route_name: str
+    dominant_level: DensityLevel | None
+    counts: dict[str, int]
+    bus_count: int
+    last_report_at: datetime | None
 
 
 class BusEta(BaseModel):

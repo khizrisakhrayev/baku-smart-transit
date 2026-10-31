@@ -53,7 +53,7 @@ def test_create_report():
     body = response.json()
     assert body["bus_id"] == "5-1" and body["level"] == "high"
     assert "timestamp" in body
-    assert len(store.reports) == 1
+    assert len(store.reports_for_route("5")) == 1
 
 
 def test_report_updates_bus_density_and_eta():
@@ -73,4 +73,4 @@ def test_report_updates_bus_density_and_eta():
 ])
 def test_invalid_report_rejected(payload):
     assert client.post("/api/reports", json=payload).status_code == 422
-    assert store.reports == []
+    assert all(store.reports_for_route(r.id) == [] for r in ROUTES)

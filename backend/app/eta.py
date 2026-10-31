@@ -8,12 +8,17 @@ to the next stop, the time to reach path[k] is:
 
 A stop can appear twice on the round-trip path (outbound and return); we take the
 soonest visit. If the bus has just left the stop, its next visit is a full loop away.
+
+The simulator runs fast so the demo map stays lively (one segment every 10s).
+Passengers see realistic times: each simulated second counts as SIM_TIME_SCALE
+real seconds, so one stop-to-stop segment shows as 10s * 15 = 2.5 minutes.
 """
 from app.models import Bus, BusEta, Route
 from app.simulator import STEPS_PER_SEGMENT, TICK_SECONDS, route_path
 from app.store import Store
 
 SEGMENT_SECONDS = STEPS_PER_SEGMENT * TICK_SECONDS
+SIM_TIME_SCALE = 15
 
 
 def segments_until_stop(bus: Bus, route: Route, stop_id: str) -> float | None:
@@ -34,7 +39,7 @@ def eta_minutes(bus: Bus, route: Route, stop_id: str) -> float | None:
     segments = segments_until_stop(bus, route, stop_id)
     if segments is None:
         return None
-    return round(segments * SEGMENT_SECONDS / 60, 1)
+    return round(segments * SEGMENT_SECONDS * SIM_TIME_SCALE / 60, 1)
 
 
 def etas_for_stop(store: Store, stop_id: str) -> list[BusEta]:

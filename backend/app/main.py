@@ -3,30 +3,45 @@
 Run from the backend/ folder:  uvicorn app.main:app --reload
 """
 import asyncio
+import os
 from contextlib import asynccontextmanager
+from datetime import timedelta
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 
-from app import eta, simulator
-from app.models import Bus, BusEta, Report, ReportIn, Route, Stop
+from app import anomaly, density, eta, simulator
+from app.models import Alert, Bus, BusEta, Report, ReportIn, Route, RouteDensity, Stop
 from app.routes_data import ROUTES
-from app.store import store
+from app.store import store, utcnow
 
 FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
+DB_PATH = os.getenv("DB_PATH", str(Path(__file__).resolve().parents[1] / "data.db"))
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Seed routes/buses and run the GPS simulator while the app is up."""
+    """Open the database, seed routes/buses, and run the background loops."""
+    store.open(DB_PATH)
     simulator.seed(store, ROUTES)
-    task = asyncio.create_task(simulator.run(store))
+    tasks = [
+        asyncio.create_task(simulator.run(store)),
+        asyncio.create_task(anomaly.run(store)),
+    ]
     yield
-    task.cancel()
+    for task in tasks:
+        task.cancel()
 
 
 app = FastAPI(title="Baku Smart Transit", lifespan=lifespan)
+
+
+def get_route_or_404(route_id: str) -> Route:
+    route = store.routes.get(route_id)
+    if route is None:
+        raise HTTPException(404, "Marşrut tapılmadı")
+    return route
 
 
 @app.get("/api/health")
@@ -34,6 +49,8 @@ def health() -> dict:
     """Simple liveness check."""
     return {"status": "ok"}
 
+
+# --- Passenger API ---
 
 @app.get("/api/routes")
 def list_routes() -> list[Route]:
@@ -47,10 +64,7 @@ def list_buses() -> list[Bus]:
 
 @app.get("/api/stops")
 def list_stops(route_id: str) -> list[Stop]:
-    route = store.routes.get(route_id)
-    if route is None:
-        raise HTTPException(404, "Marşrut tapılmadı")
-    return route.stops
+    return get_route_or_404(route_id).stops
 
 
 @app.get("/api/stops/{stop_id}/eta")
@@ -65,7 +79,48 @@ def create_report(report_in: ReportIn) -> Report:
     bus = store.buses.get(report_in.bus_id)
     if bus is None or bus.route_id != report_in.route_id:
         raise HTTPException(422, "Avtobus bu marşruta aid deyil")
-    return store.add_report(report_in)
+    report = store.add_report(report_in)
+    anomaly.check_route(store, report.route_id)
+    return report
+
+
+# --- Operator API ---
+
+@app.get("/api/operator/density")
+def operator_density() -> list[RouteDensity]:
+    return density.summary(store)
+
+
+@app.get("/api/operator/alerts")
+def operator_alerts() -> list[Alert]:
+    return store.list_alerts()
+
+
+@app.post("/api/operator/alerts/{alert_id}/resolve")
+def resolve_alert(alert_id: int) -> Alert:
+    alert = store.resolve_alert(alert_id)
+    if alert is None:
+        raise HTTPException(404, "Xəbərdarlıq tapılmadı")
+    return alert
+
+
+# --- Demo helper ---
+
+@app.post("/api/demo/flood-high")
+def demo_flood_high(route_id: str) -> dict:
+    """Add MIN_HIGH_REPORTS "high" reports backdated evenly across the anomaly window,
+    so the alert fires right away instead of after waiting the full window."""
+    get_route_or_404(route_id)
+    buses = store.buses_on_route(route_id)
+    count = anomaly.MIN_HIGH_REPORTS
+    step = anomaly.ANOMALY_WINDOW_SEC / (count - 1)
+    now = utcnow()
+    for i in range(count):
+        timestamp = now - timedelta(seconds=step * (count - 1 - i))
+        report_in = ReportIn(route_id=route_id, bus_id=buses[i % len(buses)].id, level="high")
+        store.add_report(report_in, timestamp=timestamp)
+    alert = anomaly.check_route(store, route_id, now)
+    return {"reports_added": count, "alert": alert}
 
 
 # Mounted last so /api/* routes take priority over static files.

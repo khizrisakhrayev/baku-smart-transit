@@ -44,8 +44,12 @@ def test_stop_not_on_route(route):
 
 
 def test_eta_minutes_uses_simulator_speed(route):
-    expected = 2 * eta.SEGMENT_SECONDS / 60
+    expected = 2 * eta.SEGMENT_SECONDS * eta.SIM_TIME_SCALE / 60
     assert eta.eta_minutes(bus_at(0), route, "c") == round(expected, 1)
+
+
+def test_one_segment_shows_as_two_to_three_minutes(route):
+    assert 2 <= eta.eta_minutes(bus_at(0), route, "b") <= 3
 
 
 def test_etas_for_stop_sorted_with_density(route):
