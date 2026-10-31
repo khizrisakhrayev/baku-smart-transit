@@ -33,12 +33,14 @@ def test_stops_requires_route_id():
     assert client.get("/api/stops").status_code == 422
 
 
-def test_eta_for_shared_stop_includes_both_routes():
+def test_eta_for_shared_stop_includes_all_its_routes():
     response = client.get("/api/stops/28-may/eta")
     assert response.status_code == 200
     etas = response.json()
-    assert {e["route_id"] for e in etas} == {"1", "5"}
-    assert len(etas) == 2 * simulator.BUSES_PER_ROUTE
+    expected_routes = {r.id for r in ROUTES if any(s.id == "28-may" for s in r.stops)}
+    assert len(expected_routes) > 2
+    assert {e["route_id"] for e in etas} == expected_routes
+    assert len(etas) == len(expected_routes) * simulator.BUSES_PER_ROUTE
     minutes = [e["eta_minutes"] for e in etas]
     assert minutes == sorted(minutes)
 

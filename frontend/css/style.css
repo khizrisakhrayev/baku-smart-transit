@@ -45,8 +45,9 @@ h2 { font-size: 1rem; margin: 0 0 0.5rem; }
 
 .brand { font-weight: 700; font-size: 1.1rem; }
 
-.route-picker { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; }
+.route-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
 
+.route-picker input,
 .route-picker select {
   padding: 0.45rem 0.6rem;
   border: none;
@@ -54,6 +55,8 @@ h2 { font-size: 1rem; margin: 0 0 0.5rem; }
   font-size: 0.95rem;
   max-width: 70vw;
 }
+
+.route-picker input { width: 15rem; }
 
 /* --- Layout: map on top (mobile), map + sidebar side by side (desktop) --- */
 
@@ -261,7 +264,7 @@ h2 { font-size: 1rem; margin: 0 0 0.5rem; }
   grid-template-columns: 2fr 1fr;
   grid-template-areas:
     "summary summary"
-    "map     alerts"
+    "map     side"
     "table   table";
   gap: 1rem;
   padding: 1rem;
@@ -270,15 +273,17 @@ h2 { font-size: 1rem; margin: 0 0 0.5rem; }
 }
 
 @media (max-width: 900px) {
-  .dashboard { grid-template-columns: 1fr; grid-template-areas: "summary" "alerts" "map" "table"; }
+  .dashboard { grid-template-columns: 1fr; grid-template-areas: "summary" "side" "map" "table"; }
 }
 
 .summary { grid-area: summary; display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
 .map-card { grid-area: map; padding: 0; overflow: hidden; }
-.alerts-card { grid-area: alerts; max-height: 520px; overflow-y: auto; }
+.side { grid-area: side; display: flex; flex-direction: column; gap: 1rem; min-height: 0; }
+.alerts-card { max-height: 260px; overflow-y: auto; }
+.routes-card { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .table-card { grid-area: table; }
 
-.map-card #map { height: 470px; }
+.map-card #map { height: 600px; }
 .map-card .legend { padding: 0.6rem 1rem; }
 
 .stat { display: flex; flex-direction: column; gap: 0.25rem; }
@@ -340,3 +345,40 @@ h2 { font-size: 1rem; margin: 0 0 0.5rem; }
 }
 
 .alerts-card.flash { animation: alert-flash 1.2s ease-in-out 2; }
+
+/* --- Operator route list --- */
+
+.search {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  margin-bottom: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
+
+.route-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  max-height: 360px;
+}
+
+.route-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.route-item:hover { background: var(--bg); }
+.route-item.selected { background: #e8efff; outline: 2px solid var(--primary); }
+.route-item .route-tag { background: var(--density); }
+.route-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.alert-icon { color: var(--high); font-weight: 700; }
+.density-table tr.row-alert { background: #fdecec; }

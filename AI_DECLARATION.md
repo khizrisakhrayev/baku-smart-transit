@@ -59,3 +59,17 @@ Keep JS plain and readable, no build tools."
 Poll every 3s. Add a nav link between passenger and operator pages. Also copy Leaflet into frontend/vendor so it works without CDN."
 - **Summary:** Built the operator dashboard (summary cards, density-colored route map with live buses, density table with per-route Demo buttons, alerts panel with resolve, toast/beep/flash on new alerts, 3s polling), added passenger/operator nav, and vendored Leaflet 1.9.4 (hash-verified) into frontend/vendor/leaflet.
 - **Files changed:** frontend/operator.html, frontend/js/operator.js, frontend/css/style.css, frontend/passenger.html, frontend/vendor/leaflet/*, AI_DECLARATION.md
+
+## 2026-10-31 12:50
+- **Tool:** Claude Code
+- **Prompt:** "Expand routes_data.py to 25 Baku bus routes using real route numbers and well-known real stop names with approximate coordinates. Reuse shared stop IDs where routes overlap (28-may, sahil, koroglu, genclik, nizami, elmler, icerisheher etc.). 2-3 buses per route. Add a comment that this is simplified demo data.
+Keep the maps readable:
+- passenger.html: add a search box to the route dropdown.
+- operator.html: draw all routes as thin semi-transparent grey lines; draw routes with medium/high density or an active alert thick and colored. Show bus markers only for the selected route and alerted routes.
+- operator sidebar: searchable route list, problem routes first; clicking a route highlights it and zooms to it.
+- density table sorted by severity (alerts, high, medium, low, no data).
+Update tests that assume 4 routes. Run pytest -q and commit.
+
+Aim for 80-120 unique stops total, 8-12 stops per route, covering central Baku and districts (Yasamal, Nəsimi, Nərimanov, Xətai, Binəqədi, Sabunçu, Nizami, Suraxanı). Each stop: readable unique ID, Azerbaijani display name, lat/lon. Add a test that all stop IDs are unique and every route references existing stops."
+- **Summary:** Rebuilt routes_data.py as a stop catalogue (89 stops across 8+ districts) and 25 routes (8-11 stops each, shared hub IDs) with a simplified-data disclaimer; added route search to the passenger page; operator map now greys idle routes, highlights problem/selected routes, shows buses only for selected/alerted routes, with a searchable severity-sorted route list and severity-sorted table. Added network data tests and updated 4-route assumptions.
+- **Files changed:** backend/app/routes_data.py, tests/test_routes_data.py, tests/test_api.py, tests/test_health.py, frontend/passenger.html, frontend/js/passenger.js, frontend/operator.html, frontend/js/operator.js, frontend/css/style.css, AI_DECLARATION.md

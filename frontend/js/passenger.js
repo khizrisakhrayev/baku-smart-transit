@@ -59,13 +59,33 @@ function showToast(text) {
 
 async function loadRoutes() {
   const routes = await api("/api/routes");
+  routes.forEach((route) => (state.routes[route.id] = route));
   const select = document.getElementById("route-select");
-  for (const route of routes) {
-    state.routes[route.id] = route;
-    select.add(new Option(`${route.id} · ${route.name}`, route.id));
-  }
   select.addEventListener("change", () => selectRoute(select.value));
+  document.getElementById("route-search").addEventListener("input", filterRoutes);
+  fillRouteSelect(routes);
   selectRoute(routes[0].id);
+}
+
+// Search matches the route number, route name or any of its stop names.
+function routeMatches(route, query) {
+  const text = [route.id, route.name, ...route.stops.map((s) => s.name)].join(" ");
+  return text.toLocaleLowerCase("az").includes(query);
+}
+
+function filterRoutes() {
+  const query = document.getElementById("route-search").value.trim().toLocaleLowerCase("az");
+  const matches = Object.values(state.routes).filter((route) => routeMatches(route, query));
+  fillRouteSelect(matches);
+  if (matches.length && !matches.some((r) => r.id === state.routeId)) selectRoute(matches[0].id);
+}
+
+function fillRouteSelect(routes) {
+  const select = document.getElementById("route-select");
+  select.innerHTML = "";
+  if (!routes.length) select.add(new Option("Heç nə tapılmadı", ""));
+  for (const route of routes) select.add(new Option(`${route.id} · ${route.name}`, route.id));
+  if (routes.some((r) => r.id === state.routeId)) select.value = state.routeId;
 }
 
 function selectRoute(routeId) {

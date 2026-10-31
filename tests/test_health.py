@@ -1,6 +1,8 @@
 from fastapi.testclient import TestClient
 
+from app import simulator
 from app.main import app
+from app.routes_data import ROUTES
 
 client = TestClient(app)
 
@@ -15,5 +17,5 @@ def test_frontend_served():
 
 def test_startup_seeds_routes_and_buses():
     with TestClient(app) as started:
-        assert len(started.get("/api/routes").json()) == 4
-        assert len(started.get("/api/buses").json()) == 12
+        assert len(started.get("/api/routes").json()) == len(ROUTES)
+        assert len(started.get("/api/buses").json()) == len(ROUTES) * simulator.BUSES_PER_ROUTE

@@ -1,16 +1,28 @@
-// Operator dashboard: route density map, density table, alerts and demo controls.
+// Operator dashboard: route density map, route list, density table, alerts and demo controls.
+//
+// With 25 routes the map stays readable by only emphasising what matters:
+// - every route is a thin grey line;
+// - routes with medium/high density or an active alert are thick and colored;
+// - the selected route is thick, shows its stops and is zoomed to;
+// - bus markers are shown only for the selected route and alerted routes.
 
 const POLL_MS = 3000;
-const BAKU_CENTER = [40.395, 49.88];
+const BAKU_CENTER = [40.41, 49.89];
 const DENSITY_LABELS = { low: "Aşağı", medium: "Orta", high: "Yüksək" };
 const DENSITY_COLORS = { low: "#22a06b", medium: "#f59e0b", high: "#e5484d" };
-const UNKNOWN_COLOR = "#8a94a6";
+const SELECTED_COLOR = "#2563eb";
+const IDLE_COLOR = "#8a94a6";
+const SEVERITY = { high: 3, medium: 2, low: 1 }; // alerts rank above all (4), no data is 0
 
 const state = {
-  routes: {},           // route id -> route
-  routeLines: {},       // route id -> Leaflet polyline
-  busMarkers: {},       // bus id -> Leaflet marker
-  knownAlertIds: null,  // ids seen so far; null until the first load
+  routes: {},             // route id -> route
+  routeLines: {},         // route id -> Leaflet polyline
+  busMarkers: {},         // bus id -> Leaflet marker
+  stopLayer: null,        // stop markers of the selected route
+  selectedRouteId: null,
+  densities: [],          // last /api/operator/density response
+  alertRouteIds: new Set(),  // routes with an active alert
+  knownAlertIds: null,    // alert ids seen so far; null until the first load
 };
 
 // --- Map setup ---
@@ -57,6 +69,23 @@ function showToast(text) {
   toast.classList.add("visible");
   clearTimeout(showToast.timer);
   showToast.timer = setTimeout(() => toast.classList.remove("visible"), 4000);
+}
+
+// --- Severity: alert > high > medium > low > no data ---
+
+function severity(density) {
+  if (state.alertRouteIds.has(density.route_id)) return 4;
+  return SEVERITY[density.dominant_level] || 0;
+}
+
+function bySeverity(a, b) {
+  return severity(b) - severity(a)
+    || b.counts.high - a.counts.high
+    || a.route_id.localeCompare(b.route_id, undefined, { numeric: true });
+}
+
+function isProblem(density) {
+  return severity(density) >= 2;
 }
 
 // --- New-alert signal: short beep + flashing alerts panel ---
@@ -108,26 +137,50 @@ async function loadRoutes() {
     state.routes[route.id] = route;
     const points = route.stops.map((s) => [s.lat, s.lon]);
     allPoints.push(...points);
-    state.routeLines[route.id] = L.polyline(points, { color: UNKNOWN_COLOR, weight: 6, opacity: 0.8 })
+    state.routeLines[route.id] = L.polyline(points, { color: IDLE_COLOR, weight: 3, opacity: 0.35 })
       .bindTooltip(`Marşrut ${route.id}: ${route.name}`, { sticky: true })
+      .on("click", () => selectRoute(route.id))
       .addTo(map);
-    for (const stop of route.stops) {
-      L.circleMarker([stop.lat, stop.lon], { radius: 4, color: "#1c2333", weight: 2, fillColor: "#fff", fillOpacity: 1 })
-        .bindTooltip(stop.name)
-        .addTo(map);
-    }
   }
   map.fitBounds(allPoints, { padding: [30, 30] });
 }
 
-function colorRouteLines(densities) {
-  for (const d of densities) {
+function styleRouteLines() {
+  for (const d of state.densities) {
     const line = state.routeLines[d.route_id];
-    if (line) line.setStyle({ color: DENSITY_COLORS[d.dominant_level] || UNKNOWN_COLOR });
+    if (!line) continue;
+    const selected = d.route_id === state.selectedRouteId;
+    const alerted = state.alertRouteIds.has(d.route_id);
+    if (selected || isProblem(d)) {
+      const color = alerted ? DENSITY_COLORS.high : DENSITY_COLORS[d.dominant_level] || SELECTED_COLOR;
+      line.setStyle({ color, weight: selected ? 8 : 6, opacity: 0.9 });
+      line.bringToFront();
+    } else {
+      line.setStyle({ color: IDLE_COLOR, weight: 3, opacity: 0.35 });
+    }
   }
+  // Keep the selected route on top of other highlighted routes.
+  if (state.selectedRouteId) state.routeLines[state.selectedRouteId].bringToFront();
 }
 
-// --- Live buses ---
+function selectRoute(routeId) {
+  state.selectedRouteId = state.selectedRouteId === routeId ? null : routeId; // click again to deselect
+  if (state.stopLayer) state.stopLayer.remove();
+  state.stopLayer = null;
+  if (state.selectedRouteId) {
+    const route = state.routes[routeId];
+    state.stopLayer = L.layerGroup(route.stops.map((stop) =>
+      L.circleMarker([stop.lat, stop.lon], { radius: 5, color: "#1c2333", weight: 2, fillColor: "#fff", fillOpacity: 1 })
+        .bindTooltip(stop.name)
+    )).addTo(map);
+    map.fitBounds(state.routeLines[routeId].getBounds(), { padding: [40, 40] });
+  }
+  styleRouteLines();
+  renderRouteList();
+  refresh().catch(console.error); // update bus markers right away
+}
+
+// --- Live buses (selected + alerted routes only) ---
 
 function busIcon(bus) {
   return L.divIcon({
@@ -138,8 +191,14 @@ function busIcon(bus) {
   });
 }
 
+function isBusVisible(bus) {
+  return bus.route_id === state.selectedRouteId || state.alertRouteIds.has(bus.route_id);
+}
+
 function updateBusMarkers(buses) {
-  for (const bus of buses) {
+  const visibleIds = new Set();
+  for (const bus of buses.filter(isBusVisible)) {
+    visibleIds.add(bus.id);
     let marker = state.busMarkers[bus.id];
     if (!marker) {
       marker = L.marker([bus.lat, bus.lon], { icon: busIcon(bus), zIndexOffset: 1000 })
@@ -152,21 +211,55 @@ function updateBusMarkers(buses) {
     marker.bus = bus;
     marker.setLatLng([bus.lat, bus.lon]);
   }
+  for (const [id, marker] of Object.entries(state.busMarkers)) {
+    if (!visibleIds.has(id)) {
+      marker.remove();
+      delete state.busMarkers[id];
+    }
+  }
 }
 
-// --- Summary, table and alerts ---
+// --- Summary, route list, table and alerts ---
 
-function renderSummary(buses, densities, alerts) {
-  const reports = densities.reduce((sum, d) => sum + d.counts.low + d.counts.medium + d.counts.high, 0);
+function renderSummary(buses, alerts) {
+  const reports = state.densities.reduce((sum, d) => sum + d.counts.low + d.counts.medium + d.counts.high, 0);
   document.getElementById("stat-buses").textContent = buses.length;
   document.getElementById("stat-reports").textContent = reports;
   document.getElementById("stat-alerts").textContent = alerts.filter((a) => !a.resolved_at).length;
 }
 
-function renderDensityTable(densities) {
-  document.getElementById("density-body").innerHTML = densities.map((d) => `
-    <tr>
-      <td><span class="route-tag">${d.route_id}</span> ${d.route_name}</td>
+// Search matches the route number, route name or any of its stop names.
+function routeMatches(route, query) {
+  const text = [route.id, route.name, ...route.stops.map((s) => s.name)].join(" ");
+  return text.toLocaleLowerCase("az").includes(query);
+}
+
+function renderRouteList() {
+  const query = document.getElementById("route-search").value.trim().toLocaleLowerCase("az");
+  const rows = [...state.densities].sort(bySeverity)
+    .filter((d) => routeMatches(state.routes[d.route_id], query));
+  const list = document.getElementById("route-list");
+  if (!rows.length) {
+    list.innerHTML = '<li class="hint">Heç nə tapılmadı</li>';
+    return;
+  }
+  list.innerHTML = rows.map((d) => `
+    <li class="route-item ${d.route_id === state.selectedRouteId ? "selected" : ""}" data-route-id="${d.route_id}">
+      <span class="route-tag ${densityClass(d.dominant_level)}">${d.route_id}</span>
+      <span class="route-name">${d.route_name}</span>
+      ${state.alertRouteIds.has(d.route_id) ? '<span class="alert-icon" title="Aktiv xəbərdarlıq">⚠</span>' : ""}
+      ${badge(d.dominant_level)}
+    </li>`).join("");
+}
+
+function renderDensityTable() {
+  const rows = [...state.densities].sort(bySeverity);
+  document.getElementById("density-body").innerHTML = rows.map((d) => `
+    <tr class="${state.alertRouteIds.has(d.route_id) ? "row-alert" : ""}">
+      <td>
+        <span class="route-tag">${d.route_id}</span> ${d.route_name}
+        ${state.alertRouteIds.has(d.route_id) ? '<span class="alert-icon" title="Aktiv xəbərdarlıq">⚠</span>' : ""}
+      </td>
       <td>${d.bus_count}</td>
       <td>${d.counts.low}</td>
       <td>${d.counts.medium}</td>
@@ -205,15 +298,25 @@ async function refresh() {
     api("/api/operator/density"),
     api("/api/operator/alerts"),
   ]);
+  state.densities = densities;
+  state.alertRouteIds = new Set(alerts.filter((a) => !a.resolved_at).map((a) => a.route_id));
   updateBusMarkers(buses);
-  colorRouteLines(densities);
-  renderSummary(buses, densities, alerts);
-  renderDensityTable(densities);
+  styleRouteLines();
+  renderSummary(buses, alerts);
+  renderRouteList();
+  renderDensityTable();
   renderAlerts(alerts);
   notifyNewAlerts(alerts);
 }
 
-// --- Actions (buttons are re-rendered on each poll, so listen on the containers) ---
+// --- Actions (lists are re-rendered on each poll, so listen on the containers) ---
+
+document.getElementById("route-search").addEventListener("input", renderRouteList);
+
+document.getElementById("route-list").addEventListener("click", (event) => {
+  const item = event.target.closest("[data-route-id]");
+  if (item) selectRoute(item.dataset.routeId);
+});
 
 document.getElementById("alert-list").addEventListener("click", async (event) => {
   const id = event.target.dataset.resolveId;
